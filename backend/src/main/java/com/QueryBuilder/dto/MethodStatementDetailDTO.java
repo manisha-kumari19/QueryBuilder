@@ -21,8 +21,8 @@ public class MethodStatementDetailDTO {
     private UUID expressionId;
     @JsonProperty(value = "block_id")
     private UUID blockId;
-    @JsonProperty(value = "block_config")
+    @JsonProperty(value = "blockConfig")
     private BlockConfigDTO blockConfig;
-    @JsonProperty(value = "expression_config")
+    @JsonProperty(value = "expressionConfig")
     private ExpressionConfigDTO expressionConfig;
 }

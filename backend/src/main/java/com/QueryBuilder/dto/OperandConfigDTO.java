@@ -3,6 +3,7 @@ package com.QueryBuilder.dto;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.*;
 
+import java.util.List;
 import java.util.UUID;
 @Builder
 @Getter
@@ -21,4 +22,6 @@ public class OperandConfigDTO {
     private UUID expressionId;
     private String type;
     private String query;
+    private List<MethodArgumentsConfigDTO> methodArgumentsConfigList;
+    private ExpressionConfigDTO expressionConfig;
 }

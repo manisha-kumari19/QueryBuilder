@@ -28,7 +28,12 @@ public class Query {
         try {
             List<MethodConfigDTO> methodConfigDTOList = jsonService.mapJsonToDTO(jsonString);
             // Perform further processing with the list of MethodConfigDTOs
-            jsonService.getAllMethods(methodConfigDTOList);
+//            System.out.println(methodConfigDTOList);
+//            for(MethodConfigDTO method : methodConfigDTOList )
+//            {
+//                System.out.println(method);
+//            }
+           jsonService.getAllMethods(methodConfigDTOList);
             return "Hii";
         } catch (Exception e) {
             // Handle the exception appropriately
