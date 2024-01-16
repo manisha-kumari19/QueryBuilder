@@ -179,8 +179,20 @@ private UUID generateScript(Object method, String tableName) throws IllegalAcces
     // Loop fields to get column names
     for (int i = 0; i < fields.length; i++) {
         fields[i].setAccessible(true);
-        query.append(fields[i].getName());
-        if (i != fields.length - 1) query.append(" ,");
+        //System.out.println("Fields["+i+"]"+fields[i].getType());
+
+        if (!List.class.isAssignableFrom(fields[i].getType())) {
+            query.append(fields[i].getName());
+            if (i != fields.length - 1) query.append(" ,");
+
+        }
+//        if (i != fields.length - 1) query.append(" ,");
+        //query.append(fields[i].getName());
+
+    }
+
+    if (query.length() > 2) {
+        query.setLength(query.length() - 2);
     }
     query.append(" ) VALUES (");
 
@@ -188,32 +200,43 @@ private UUID generateScript(Object method, String tableName) throws IllegalAcces
     for (int i = 0; i < fields.length; i++) {
         Object value = fields[i].get(method);
         Class<?> fieldType = fields[i].getType();
-
-        if (value == null || fieldType.isPrimitive() || fieldType == String.class || Number.class.isAssignableFrom(fieldType) || fieldType == UUID.class) {
+        if (value == null) {
+            if (!List.class.isAssignableFrom(fieldType)) {
+                query.append(value);
+                if (i != fields.length - 1) query.append(" ,");
+            }
+        } else if (fieldType.isPrimitive() || fieldType == String.class || Number.class.isAssignableFrom(fieldType) || fieldType == UUID.class) {
             // Handle primitive types or String or subclasses of Number
-            query.append(value + " ,");
+            query.append(value );
+            if (i != fields.length - 1) query.append(" ,");
         } else {
             // Handle nested structures
-            if (value instanceof List) {
+            if (List.class.isAssignableFrom(value.getClass())) {
                 List<?> list = (List<?>) value;
                 //System.out.println("list----"+list);
                 for (Object listItem : list) {
                     //System.out.println("List Item :"+listItem);
                     if (listItem != null) {
                         String table = tableNames.get(fields[i].getName());
-                        UUID id=generateScript(listItem, table);
-                        query.append(id+" ");
+                        UUID id = generateScript(listItem, table);
+
+//                        query.append(id+" ");
                     }
                 }
             } else {
                 // Recursively handle nested objects
                 String table = tableNames.get(fields[i].getName());
                 UUID id = generateScript(value, table);
-               query.append(id+" ");
+                query.append(id + " ");
+                if (i != fields.length - 1) query.append(" ,");
             }
 
-            if (i != fields.length - 1) query.append(" ,");
+
         }
+    }
+
+    if (query.length() > 2) {
+        query.setLength(query.length() - 2);
     }
     query.append(")");
 
@@ -222,4 +245,5 @@ private UUID generateScript(Object method, String tableName) throws IllegalAcces
 }
 
 }
+
 
