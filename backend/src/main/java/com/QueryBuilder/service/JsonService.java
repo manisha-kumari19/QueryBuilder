@@ -170,7 +170,7 @@ public class JsonService {
 //        return query.toString();
 //
 //    }
-private String generateScript(Object method, String tableName) throws IllegalAccessException {
+private UUID generateScript(Object method, String tableName) throws IllegalAccessException {
     StringBuilder query = new StringBuilder("INSERT INTO " + tableName + " (");
 
     // getting fields in a method
@@ -201,13 +201,15 @@ private String generateScript(Object method, String tableName) throws IllegalAcc
                     //System.out.println("List Item :"+listItem);
                     if (listItem != null) {
                         String table = tableNames.get(fields[i].getName());
-                        generateScript(listItem, table);
+                        UUID id=generateScript(listItem, table);
+                        query.append(id+" ");
                     }
                 }
             } else {
                 // Recursively handle nested objects
                 String table = tableNames.get(fields[i].getName());
-                generateScript(value, table);
+                UUID id = generateScript(value, table);
+               query.append(id+" ");
             }
 
             if (i != fields.length - 1) query.append(" ,");
@@ -216,7 +218,7 @@ private String generateScript(Object method, String tableName) throws IllegalAcc
     query.append(")");
 
     System.out.println(query.toString());
-    return query.toString();
+    return (UUID) fields[0].get(method);
 }
 
 }
