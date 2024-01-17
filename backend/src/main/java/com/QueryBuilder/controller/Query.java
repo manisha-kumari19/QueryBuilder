@@ -22,24 +22,18 @@ public class Query {
     @PostMapping("generate")
     public String generateScript(@RequestBody String  jsonString)
     {
-
-
-//        System.out.println(jsonString);
         try {
+            //converting json to DTO
             List<MethodConfigDTO> methodConfigDTOList = jsonService.mapJsonToDTO(jsonString);
             // Perform further processing with the list of MethodConfigDTOs
-//            System.out.println(methodConfigDTOList);
-//            for(MethodConfigDTO method : methodConfigDTOList )
-//            {
-//                System.out.println(method);
-//            }
+
            jsonService.getAllMethods(methodConfigDTOList);
-            return "Hii";
+            return "success";
         } catch (Exception e) {
             // Handle the exception appropriately
             System.out.println(e);
             e.printStackTrace();
-            return "Bye";
+            return "failure";
         }
     }
 }
