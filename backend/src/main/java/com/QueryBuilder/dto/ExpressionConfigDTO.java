@@ -13,11 +13,11 @@ import java.util.UUID;
 public class ExpressionConfigDTO {
     private UUID id;
     @JsonProperty(value = "left_operand_id")
-    private UUID leftOperandId;
+    private UUID left_operand_id;
     @JsonProperty(value = "right_operand_id")
-    private UUID rightOperandId;
+    private UUID right_operand_id;
     @JsonProperty(value = "operator_id")
-    private UUID operatorId;
+    private UUID operator_id;
     private OperatorDTO operator;
     private OperandConfigDTO leftOperand;
     private OperandConfigDTO rightOperand;

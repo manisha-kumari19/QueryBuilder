@@ -14,14 +14,14 @@ public class MethodArgumentsConfigDTO {
 
     private UUID id;
     @JsonProperty(value="operand_id")
-    private UUID operandId;
+    private UUID operand_id;
     @JsonProperty(value="method_variable_id")
-    private UUID methodVariableId;
+    private UUID method_variable_id;
     private String literal;
     @JsonProperty(value="path_to_object")
-    private String pathToObject;
+    private String path_to_object;
     @JsonProperty(value="expression_id")
-    private UUID expressionId;
+    private UUID expression_id;
     private MethodVariableDTO methodVariables;
     private ExpressionConfigDTO expressionConfig;
 }

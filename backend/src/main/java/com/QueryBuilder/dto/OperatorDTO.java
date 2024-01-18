@@ -13,7 +13,7 @@ import java.util.UUID;
 public class OperatorDTO {
     public UUID id;
     @JsonProperty(value = "is_archive")
-    public boolean isArchive;
+    public boolean is_archive;
     public String name;
     public String type;
 }

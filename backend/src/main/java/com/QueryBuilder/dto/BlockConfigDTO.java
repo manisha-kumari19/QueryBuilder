@@ -13,6 +13,6 @@ import java.util.*;
 public class BlockConfigDTO {
     private UUID id;
     @JsonProperty(value = "parent_block_id")
-    private UUID parentBlockId;
+    private UUID parent_block_id;
     private List<MethodStatementDTO> methodStatementList;
 }

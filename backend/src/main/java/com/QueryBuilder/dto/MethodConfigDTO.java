@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.*;
 
 import java.util.*;
+
 @Builder
 @Getter
 @Setter
@@ -21,7 +22,7 @@ public class MethodConfigDTO {
     private UUID block_id;
     private String type;
     @JsonProperty(value = "package_name")
-    private String package_name;
+    private PackageNameDTO package_name;
     private List<MethodVariableDTO> methodVariablesList;
     private BlockConfigDTO blockConfig;
 }

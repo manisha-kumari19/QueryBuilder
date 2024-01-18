@@ -15,6 +15,6 @@ public class MethodStatementDTO {
     private String type;
     private int sequence;
     @JsonProperty(value = "block_id")
-    private UUID blockId;
+    private UUID block_id;
     private List<MethodStatementDetailDTO> methodStatementDetailList;
 }

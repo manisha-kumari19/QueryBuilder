@@ -14,14 +14,15 @@ import java.util.UUID;
 public class OperandConfigDTO {
     private UUID id;
     @JsonProperty(value = "path_to_object")
-    private String pathToObject;
+    private String path_to_object;
     private String literal;
     @JsonProperty(value = "method_to_be_called")
-    private UUID methodToBeCalled;
+    private UUID method_to_be_called;
     @JsonProperty(value = "expression_id")
-    private UUID expressionId;
+    private UUID expression_id;
     private String type;
-    private String query;
+    @JsonProperty(value = "query_config_id")
+    private UUID query_config_id;
     private List<MethodArgumentsConfigDTO> methodArgumentsConfigList;
     private ExpressionConfigDTO expressionConfig;
 }

@@ -14,10 +14,10 @@ public class MethodVariableDTO {
 
     private UUID id;
     @JsonProperty(value = "variable_name")
-    private String variableName;
+    private String variable_name;
     private String type;
     @JsonProperty(value = "schema_def_id")
-    private UUID schemaDefId;
+    private UUID schema_def_id;
     @JsonProperty(value = "method_id")
-    private UUID methodId;
+    private UUID method_id;
 }
