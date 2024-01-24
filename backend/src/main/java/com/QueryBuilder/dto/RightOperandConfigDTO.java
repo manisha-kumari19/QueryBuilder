@@ -1,3 +1,4 @@
+
 package com.QueryBuilder.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -11,18 +12,18 @@ import java.util.UUID;
 @AllArgsConstructor
 @NoArgsConstructor
 @ToString
-public class OperandConfigDTO {
+public class RightOperandConfigDTO {
     private UUID id;
     @JsonProperty(value = "path_to_object")
-    private String path_to_object;
+    private String pathToObject;
     private String literal;
     @JsonProperty(value = "method_to_be_called")
-    private UUID method_to_be_called;
+    private UUID methodToBeCalled;
     @JsonProperty(value = "expression_id")
-    private UUID expression_id;
+    private UUID expressionId;
     private String type;
-    @JsonProperty(value = "c ")
     private UUID query_config_id;
+    private QueryConfigDTO query_config;
     private List<MethodArgumentsConfigDTO> methodArgumentsConfigList;
     private ExpressionConfigDTO expressionConfig;
 }

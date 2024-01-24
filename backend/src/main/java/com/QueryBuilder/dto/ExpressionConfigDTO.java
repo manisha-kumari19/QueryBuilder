@@ -19,6 +19,6 @@ public class ExpressionConfigDTO {
     @JsonProperty(value = "operator_id")
     private UUID operator_id;
     private OperatorDTO operator;
-    private OperandConfigDTO leftOperand;
-    private OperandConfigDTO rightOperand;
+    private LeftOperandConfigDTO leftOperand;
+    private RightOperandConfigDTO rightOperand;
 }
