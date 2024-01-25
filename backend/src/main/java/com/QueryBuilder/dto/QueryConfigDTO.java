@@ -13,5 +13,5 @@ import java.util.UUID;
 public class QueryConfigDTO {
     private UUID id;
     private String query;
-    private UUID databaseConfigId;
+    private UUID database_config_id;
 }

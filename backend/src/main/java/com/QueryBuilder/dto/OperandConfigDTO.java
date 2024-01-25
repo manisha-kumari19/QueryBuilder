@@ -21,8 +21,8 @@ public class OperandConfigDTO {
     @JsonProperty(value = "expression_id")
     private UUID expression_id;
     private String type;
-    @JsonProperty(value = "c ")
     private UUID query_config_id;
+    private QueryConfigDTO queryConfig;
     private List<MethodArgumentsConfigDTO> methodArgumentsConfigList;
     private ExpressionConfigDTO expressionConfig;
 }

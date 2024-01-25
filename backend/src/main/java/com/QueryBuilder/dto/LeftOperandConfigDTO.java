@@ -22,7 +22,7 @@ public class LeftOperandConfigDTO {
     private UUID expressionId;
     private String type;
     private UUID query_config_id;
-    private QueryConfigDTO query_config;
+    private QueryConfigDTO queryConfig;;
     private List<MethodArgumentsConfigDTO> methodArgumentsConfigList;
     private ExpressionConfigDTO expressionConfig;
 }

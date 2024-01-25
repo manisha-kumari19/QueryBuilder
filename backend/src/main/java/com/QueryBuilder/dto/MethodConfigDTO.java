@@ -22,7 +22,8 @@ public class MethodConfigDTO {
     private UUID block_id;
     private String type;
     @JsonProperty(value = "package_name")
-    private PackageNameDTO package_name;
+    private String package_name;
+    private Boolean is_using_multiple_db;
     private List<MethodVariableDTO> methodVariablesList;
     private BlockConfigDTO blockConfig;
 }
