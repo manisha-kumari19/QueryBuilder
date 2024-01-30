@@ -16,6 +16,7 @@ import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 
 @Service
@@ -37,6 +38,8 @@ public class ScriptService {
     public int rightOperands = 0;
     public int methodArgument = 0;
     public int operand = 0;
+
+
 
     public int methodquery = 0;
 
@@ -126,6 +129,12 @@ public class ScriptService {
             for (int i = 1; i <= methodquery; i++) {
                 script.append("v_query_id_" + i + " UUID ;\n");
             }
+
+             script.append("v_method_to_be_called UUID;\n");
+            script.append("v_method_name VARCHAR;\n");
+            script.append("v_package_name VARCHAR;\n");
+
+
             script.append("\n BEGIN \n");
             script.append(queries);
             script.append("\nCOMMIT; \nEND $$;");
@@ -274,7 +283,21 @@ public class ScriptService {
             String tableName = tableNames.get("operand");
 
             if (leftOperand.getMethodToBeCalled() != null) {
-                query.append("INSERT INTO " + tableName + "(id,path_to_object,literal,method_to_be_called,expression_id,type,query_config_id) VALUES ( uuid_generate_v4() , NULL ,NULL,'" + leftOperand.getMethodToBeCalled() + "'," + "NULL" + ",'" + leftOperand.getType() + "'," + "NULL) RETURNING id INTO v_left_operand_id_" + leftOperands + ";\n");
+//                query.append("INSERT INTO " + tableName + "(id,path_to_object,literal,method_to_be_called,expression_id,type,query_config_id) VALUES ( uuid_generate_v4() , NULL ,NULL,'" + leftOperand.getMethodToBeCalled() + "'," + "NULL" + ",'" + leftOperand.getType() + "'," + "NULL) RETURNING id INTO v_left_operand_id_" + leftOperands + ";\n");
+                String methodToBeCalled = leftOperand.getMethodToBeCalled();
+
+                query.append("v_method_name := '" + methodToBeCalled.split("\\.")[1] + "';\n");
+                query.append("v_package_name := '" + methodToBeCalled.split("\\.")[0] + "';\n");
+
+                // Set v_method_to_be_called to the desired method_id
+                query.append("SELECT id INTO v_method_to_be_called FROM config.m_method_config WHERE package_name = v_package_name::ltree AND name = v_method_name LIMIT 1;");
+
+
+                // Insert into config.m_operand_config
+                query.append("INSERT INTO " + tableName + "(id,path_to_object,literal,method_to_be_called,expression_id,type,query_config_id) " +
+                        "VALUES (uuid_generate_v4(), NULL, NULL, v_method_to_be_called, NULL, '" + leftOperand.getType() + "', NULL) " +
+                        "RETURNING id INTO v_left_operand_id_" + leftOperands + ";\n");
+
 
                 List<MethodArgumentsConfigDTO> methodArgumentsList = leftOperand.getMethodArgumentsConfigList();
                 if (methodArgumentsList != null) {
@@ -308,7 +331,22 @@ public class ScriptService {
             String tableName = tableNames.get("operand");
 
             if (rightOperand.getMethodToBeCalled() != null) {
-                query.append("INSERT INTO " + tableName + "(id,path_to_object,literal,method_to_be_called,expression_id,type,query_config_id) VALUES ( uuid_generate_v4() , NULL ,NULL,'" + rightOperand.getMethodToBeCalled() + "'," + "NULL" + ",'" + rightOperand.getType() + "'," + "NULL) RETURNING id INTO v_right_operand_id_" + rightOperands + ";\n");
+//                query.append("INSERT INTO " + tableName + "(id,path_to_object,literal,method_to_be_called,expression_id,type,query_config_id) VALUES ( uuid_generate_v4() , NULL ,NULL,'" + rightOperand.getMethodToBeCalled() + "'," + "NULL" + ",'" + rightOperand.getType() + "'," + "NULL) RETURNING id INTO v_right_operand_id_" + rightOperands + ";\n");
+
+                String methodToBeCalled = rightOperand.getMethodToBeCalled();
+
+                query.append("v_method_name := '" + methodToBeCalled.split("\\.")[1] + "';\n");
+                query.append("v_package_name := '" + methodToBeCalled.split("\\.")[0] + "';\n");
+
+                // Set v_method_to_be_called to the desired method_id
+                query.append("SELECT id INTO v_method_to_be_called FROM config.m_method_config WHERE package_name = v_package_name::ltree AND name = v_method_name LIMIT 1;");
+
+
+                // Insert into config.m_operand_config
+                query.append("INSERT INTO " + tableName + "(id,path_to_object,literal,method_to_be_called,expression_id,type,query_config_id) " +
+                        "VALUES (uuid_generate_v4(), NULL, NULL, v_method_to_be_called, NULL, '" + rightOperand.getType() + "', NULL) " +
+                        "RETURNING id INTO v_right_operand_id_" + rightOperands + ";\n");
+
                 for (MethodArgumentsConfigDTO methodArguments : rightOperand.getMethodArgumentsConfigList()) {
                     query.append(generateScript(methodArguments, "right"));
                 }
@@ -389,7 +427,6 @@ public class ScriptService {
 
         return query.toString();
     }
-
 
 
 

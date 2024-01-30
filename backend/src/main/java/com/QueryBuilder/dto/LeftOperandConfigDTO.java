@@ -17,7 +17,8 @@ public class LeftOperandConfigDTO {
     private String pathToObject;
     private String literal;
     @JsonProperty(value = "method_to_be_called")
-    private UUID methodToBeCalled;
+//    private UUID methodToBeCalled;
+    private  String methodToBeCalled;
     @JsonProperty(value = "expression_id")
     private UUID expressionId;
     private String type;
