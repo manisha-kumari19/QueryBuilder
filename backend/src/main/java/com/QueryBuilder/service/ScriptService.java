@@ -186,7 +186,7 @@ public class ScriptService {
 
                 blockConfig++;
                 int blockConfigCounter=(blockConfig == 0) ? 1 : blockConfig ;
-                int statementDetailsCounter=(statement == 0)? 1 : statement;
+                int statementDetailsCounter=(statementDetails == 0)? 1 : statementDetails;
                 String tableName = tableNames.get("blockConfig");
                 query.append("INSERT INTO " + tableName + " (id,parent_block_id) VALUES (" + "uuid_generate_v4()" + "," + block.getParent_block_id() + " ) RETURNING id INTO v_block_id_" + blockConfigCounter + ";\n");
                 if (parent.equals("config.m_method_config")) {
@@ -347,7 +347,7 @@ public class ScriptService {
             rightOperands++;
             int rightOperandsCounter=(rightOperands == 0)? 1:rightOperands;;
             int expressionCounter=(expressions == 0)? 1:expressions;
-            int methodQueryCounter=(leftOperands == 0)? 1:leftOperands;;
+            int methodQueryCounter=(methodquery == 0)? 1:methodquery;
             String tableName = tableNames.get("operand");
 
             if (rightOperand.getMethodToBeCalled() != null) {
