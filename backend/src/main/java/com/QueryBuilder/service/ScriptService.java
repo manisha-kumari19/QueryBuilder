@@ -185,8 +185,8 @@ public class ScriptService {
         else if (object instanceof BlockConfigDTO block) {
 
                 blockConfig++;
-                int blockConfigCounter=blockConfig;
-                int statementDetailsCounter=statement;
+                int blockConfigCounter=(blockConfig == 0) ? 1 : blockConfig ;
+                int statementDetailsCounter=(statement == 0)? 1 : statement;
                 String tableName = tableNames.get("blockConfig");
                 query.append("INSERT INTO " + tableName + " (id,parent_block_id) VALUES (" + "uuid_generate_v4()" + "," + block.getParent_block_id() + " ) RETURNING id INTO v_block_id_" + blockConfigCounter + ";\n");
                 if (parent.equals("config.m_method_config")) {
@@ -208,9 +208,10 @@ public class ScriptService {
         //method statement
         else if (object instanceof MethodStatementDTO statements) {
             statement++;
-            int statementCounter=statement;
-            int blockConfigCounter=blockConfig;
+            int statementCounter=(statement == 0)? 1 : statement;
+            int blockConfigCounter=(blockConfig == 0) ? 1 : blockConfig ;;
             String tableName = tableNames.get("methodStatementList");
+            System.out.println("-----Statement Counter : "+statementCounter);
             query.append("INSERT INTO " + tableName + " (id,type,sequence,block_id) VALUES (" + "uuid_generate_v4()," + "'" + statements.getType() + "','" + statements.getSequence() + "'," + "v_block_id_" + blockConfigCounter + ")" + "RETURNING id INTO v_method_statement_id_" + statementCounter + ";\n");
             if (statements.getMethodStatementDetailList() != null && !statements.getMethodStatementDetailList().isEmpty()) {
                 for (MethodStatementDetailDTO statementDetail : statements.getMethodStatementDetailList()) {
@@ -222,15 +223,16 @@ public class ScriptService {
         //method_statement_detail
         else if (object instanceof MethodStatementDetailDTO statementDetail) {
             statementDetails++;
-            int statementDetailCounter=statementDetails;
-            int statementCounter=statement;
-            int blockConfigCounter=blockConfig;
-            int expressionCounter=expressions;
+            int statementDetailCounter=(statementDetails == 0)? 1 : statementDetails ;
+            int statementCounter=(statement == 0)? 1  : statement;;
+            int blockConfigCounter=(blockConfig == 0) ? 1 : blockConfig ;;
+            int expressionCounter=(expressions==0)? 1:expressions;
             String tableName = tableNames.get("methodStatementDetailList");
 
             if (statementDetail.getBlockConfig() != null && statementDetail.getExpressionConfig() != null) {
                 query.append(generateScript(statementDetail.getBlockConfig(), tableName));
                 query.append(generateScript(statementDetail.getExpressionConfig(), tableName));
+                System.out.println("-----StatementDetail Counter : "+statementCounter);
                 query.append("INSERT INTO " + tableName + " (id,method_statement_id,sequence,method_statement_expression_type,expression_id,block_id) VALUES ( uuid_generate_v4(),v_method_statement_id_" + statementCounter + "," + statementDetail.getSequence() + ",'" + statementDetail.getMethod_statement_expression_type() + "'," + " v_expression_id_" + expressionCounter + ",v_block_id_" + blockConfigCounter + ") RETURNING id INTO v_method_statement_detail_id_" + statementDetailCounter + ";\n");
             } else if (statementDetail.getBlockConfig() == null && statementDetail.getExpressionConfig() != null) {
                 query.append(generateScript(statementDetail.getExpressionConfig(), tableName));
@@ -251,10 +253,10 @@ public class ScriptService {
         //expression_config
         else if (object instanceof ExpressionConfigDTO expression) {
             expressions++;
-            int expressionCounter =expressions;
-            int leftOperandCounter=leftOperands;
-            int rightOperandCounter=rightOperands;
-            int operatorCounter=operators;
+            int expressionCounter =(expressions==0)? 1 :expressions;
+            int leftOperandCounter=(leftOperands == 0)? 1 :leftOperands;
+            int rightOperandCounter=(rightOperands == 0)? 1 :rightOperands;;
+            int operatorCounter=(operators == 0)? 1:operators;;
             String tableName = tableNames.get("expressionConfig");
 
 
@@ -293,9 +295,9 @@ public class ScriptService {
         // left operand_config
         else if (object instanceof LeftOperandConfigDTO leftOperand) {
             leftOperands++;
-            int leftOperandCounter=leftOperands;
-            int expressionCounter=expressions;
-            int methodQueryCounter=methodquery;
+            int leftOperandCounter=(leftOperands == 0)? 1:leftOperands;
+            int expressionCounter=(expressions == 0)? 1:expressions;
+            int methodQueryCounter=(methodquery == 0)? 1:methodquery;
             String tableName = tableNames.get("operand");
 
             if (leftOperand.getMethodToBeCalled() != null) {
@@ -343,9 +345,9 @@ public class ScriptService {
         //right operand
         else if (object instanceof RightOperandConfigDTO rightOperand) {
             rightOperands++;
-            int rightOperandsCounter=rightOperands;
-            int expressionCounter=expressions;
-            int methodQueryCounter=methodquery;
+            int rightOperandsCounter=(rightOperands == 0)? 1:rightOperands;;
+            int expressionCounter=(expressions == 0)? 1:expressions;
+            int methodQueryCounter=(leftOperands == 0)? 1:leftOperands;;
             String tableName = tableNames.get("operand");
 
             if (rightOperand.getMethodToBeCalled() != null) {
@@ -394,8 +396,8 @@ public class ScriptService {
         //operator_config
         else if (object instanceof OperatorDTO operator) {
             operators++;
-            int operatorCounter=operators;
-            int expressionCounter=expressions;
+            int operatorCounter=(operators == 0)? 1:operators;;
+            int expressionCounter=(expressions == 0)? 1:expressions;
             String tableName = tableNames.get("operator");
             query.append("INSERT INTO " + tableName + "(id,is_archive,name,type) VALUES(" + "uuid_generate_v4(),'" + operator.is_archive() + "','" + operator.getName() + "','" + operator.getType() + "') ON CONFLICT (id)\n" + "DO NOTHING  RETURNING ID INTO v_operator_id_" + operatorCounter + ";\n");
             if (parent.equals("config.m_expression_config")) {
@@ -406,10 +408,10 @@ public class ScriptService {
         //method_Arguments_config
         else if (object instanceof MethodArgumentsConfigDTO methodArguments) {
             methodArgument++;
-            int methodArgumentsCounter=methodArgument;
-            int leftOperandCounter=leftOperands;
-            int rightOperandCounter=rightOperands;
-            int expressionCounter=expressions;
+            int methodArgumentsCounter=(methodArgument == 0)? 1:methodArgument;
+            int leftOperandCounter=(leftOperands == 0)? 1:leftOperands;
+            int rightOperandCounter=(rightOperands == 0)? 1:rightOperands;
+            int expressionCounter=(expressions == 0)? 1:expressions;
             String tableName = tableNames.get("methodArgumentsConfigList");
 
             if (methodArguments.getExpressionConfig() != null) {
