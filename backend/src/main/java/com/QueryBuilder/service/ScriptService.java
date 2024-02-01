@@ -12,6 +12,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -20,11 +21,16 @@ import java.util.Map;
 @Service
 public class ScriptService {
 
+    // Autowired ObjectMapper for JSON processing
     @Autowired
     public ObjectMapper objectMapper;
-    // Map to store table names corresponding to different elements
+
+
+    // Map to store table names
     public Map<String, String> tableNames = new HashMap<String, String>();
-    // Counter variables to keep track of different elements during script generation
+
+
+    // Counters for various elements
     public int methodConfig = 0;
     public int blockConfig = 0;
     public int variable = 0;
@@ -38,9 +44,10 @@ public class ScriptService {
     public int operand = 0;
     public int methodquery = 0;
 
-    // Constructor initializes the ObjectMapper and sets up table names
+    // Constructor with ObjectMapper initialization and tableNames mapping
     public ScriptService(ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
+        // Mapping table names to corresponding keys
         tableNames.put("blockConfig", "config.m_block_config");
         tableNames.put("methodVariablesList", "config.m_method_variables");
         tableNames.put("methodStatementDetailList", "config.m_method_statement_detail");
@@ -57,7 +64,7 @@ public class ScriptService {
 
     }
 
-    // Method to fix queries by replacing single quotes if query itself contain single quotes
+    // Method to fix single quotes in a query
     public static String fixQuery(String originalQuery) {
         // Replace single quotes with two single quotes
         String fixedQuery = originalQuery.replace("'", "''");
@@ -88,21 +95,18 @@ public class ScriptService {
         return objectMapper.readValue(jsonString, typeReference);
     }
 
-    /**
-     * Generates a PL/pgSQL script for a list of MethodConfigDTO objects, declaring necessary variables,
-     * executing SQL scripts for each method, and saving the generated script to a file.
-     *
-     * @param methodConfigDTOList List of MethodConfigDTO objects to generate scripts for
-     * @return The final PL/pgSQL script as a String
-     */
+    // Method to generate script for all methods and save to files
     public String getAllMethods(List<MethodConfigDTO> methodConfigDTOList) throws IllegalAccessException {
         String queries = "";
         StringBuilder script = new StringBuilder();
         script.append("DO $$ \n DECLARE \n");
+
+        // Iterate through each method in the list
         for (MethodConfigDTO method : methodConfigDTOList) {
             resetCounters();
             queries = generateScript(method, null);
 
+            // Declare variables for each counter
             for (int i = 1; i <= methodConfig; i++) {
                 script.append("v_method_id_" + i + " UUID ;\n");
             }
@@ -139,12 +143,9 @@ public class ScriptService {
             for (int i = 1; i <= methodquery; i++) {
                 script.append("v_query_id_" + i + " UUID ;\n");
             }
-
             script.append("v_method_to_be_called UUID;\n");
             script.append("v_method_name VARCHAR;\n");
             script.append("v_package_name VARCHAR;\n");
-
-
             script.append("\n BEGIN \n");
             script.append(queries);
             script.append("\nCOMMIT; \nEND $$;");
@@ -157,15 +158,12 @@ public class ScriptService {
 
     }
 
-    /**
-     * Generates SQL script for different types of objects within the PL/pgSQL block.
-     *
-     * @param object The object for which the SQL script needs to be generated
-     * @param parent The parent context of the object (if applicable)
-     * @return The generated SQL script as a String
-     */
+    // Method to generate script for a given object
     public String generateScript(Object object, String parent) {
         StringBuilder query = new StringBuilder();
+
+
+        // Handling different DTO types
 
         //method config
         if (object instanceof MethodConfigDTO method) {
@@ -185,58 +183,65 @@ public class ScriptService {
 
         //block_config
         else if (object instanceof BlockConfigDTO block) {
-            blockConfig++;
-            String tableName = tableNames.get("blockConfig");
-            query.append("INSERT INTO " + tableName + " (id,parent_block_id) VALUES (" + "uuid_generate_v4()" + "," + block.getParent_block_id() + " ) RETURNING id INTO v_block_id_" + blockConfig + ";\n");
-            if (parent.equals("config.m_method_config")) {
-                query.append(" UPDATE config.m_method_config SET block_id = v_block_id_" + blockConfig + " WHERE id = v_method_id_" + methodConfig + ";\n");
-            }
+
+                blockConfig++;
+                int blockConfigCounter=blockConfig;
+                int statementDetailsCounter=statement;
+                String tableName = tableNames.get("blockConfig");
+                query.append("INSERT INTO " + tableName + " (id,parent_block_id) VALUES (" + "uuid_generate_v4()" + "," + block.getParent_block_id() + " ) RETURNING id INTO v_block_id_" + blockConfigCounter + ";\n");
+                if (parent.equals("config.m_method_config")) {
+                    query.append(" UPDATE config.m_method_config SET block_id = v_block_id_" + blockConfigCounter + " WHERE id = v_method_id_" + methodConfig + ";\n");
+                }
 
 
-            if (block.getMethodStatementList() != null && !block.getMethodStatementList().isEmpty()) {
-                for (MethodStatementDTO statement : block.getMethodStatementList()) {
+                if (block.getMethodStatementList() != null && !block.getMethodStatementList().isEmpty()) {
+                    for (MethodStatementDTO statement : block.getMethodStatementList()) {
                     query.append(generateScript(statement, null));
                 }
             }
             if (parent.equals("config.m_method_statement_detail")) {
-                query.append(" UPDATE config.m_method_statement_detail SET block_id = v_block_id_" + blockConfig + " WHERE id = v_method_statement_detail_id_" + statementDetails + ";\n");
+                query.append(" UPDATE config.m_method_statement_detail SET block_id = v_block_id_" + blockConfigCounter + " WHERE id = v_method_statement_detail_id_" + statementDetailsCounter + ";\n");
             }
 
         }
 
-       //method statement
+        //method statement
         else if (object instanceof MethodStatementDTO statements) {
             statement++;
+            int statementCounter=statement;
+            int blockConfigCounter=blockConfig;
             String tableName = tableNames.get("methodStatementList");
-            query.append("INSERT INTO " + tableName + " (id,type,sequence,block_id) VALUES (" + "uuid_generate_v4()," + "'" + statements.getType() + "','" + statements.getSequence() + "'," + "v_block_id_" + blockConfig + ")" + "RETURNING id INTO v_method_statement_id_" + statement + ";\n");
+            query.append("INSERT INTO " + tableName + " (id,type,sequence,block_id) VALUES (" + "uuid_generate_v4()," + "'" + statements.getType() + "','" + statements.getSequence() + "'," + "v_block_id_" + blockConfigCounter + ")" + "RETURNING id INTO v_method_statement_id_" + statementCounter + ";\n");
             if (statements.getMethodStatementDetailList() != null && !statements.getMethodStatementDetailList().isEmpty()) {
                 for (MethodStatementDetailDTO statementDetail : statements.getMethodStatementDetailList()) {
                     query.append(generateScript(statementDetail, null));
                 }
             }
-
-
         }
 
         //method_statement_detail
         else if (object instanceof MethodStatementDetailDTO statementDetail) {
             statementDetails++;
+            int statementDetailCounter=statementDetails;
+            int statementCounter=statement;
+            int blockConfigCounter=blockConfig;
+            int expressionCounter=expressions;
             String tableName = tableNames.get("methodStatementDetailList");
 
             if (statementDetail.getBlockConfig() != null && statementDetail.getExpressionConfig() != null) {
                 query.append(generateScript(statementDetail.getBlockConfig(), tableName));
                 query.append(generateScript(statementDetail.getExpressionConfig(), tableName));
-                query.append("INSERT INTO " + tableName + " (id,method_statement_id,sequence,method_statement_expression_type,expression_id,block_id) VALUES ( uuid_generate_v4(),v_method_statement_id_" + statement + "," + statementDetail.getSequence() + ",'" + statementDetail.getMethod_statement_expression_type() + "'," + " v_expression_id_" + expressions + ",v_block_id_" + blockConfig + ") RETURNING id INTO v_method_statement_detail_id_" + statementDetails + ";\n");
+                query.append("INSERT INTO " + tableName + " (id,method_statement_id,sequence,method_statement_expression_type,expression_id,block_id) VALUES ( uuid_generate_v4(),v_method_statement_id_" + statementCounter + "," + statementDetail.getSequence() + ",'" + statementDetail.getMethod_statement_expression_type() + "'," + " v_expression_id_" + expressionCounter + ",v_block_id_" + blockConfigCounter + ") RETURNING id INTO v_method_statement_detail_id_" + statementDetailCounter + ";\n");
             } else if (statementDetail.getBlockConfig() == null && statementDetail.getExpressionConfig() != null) {
                 query.append(generateScript(statementDetail.getExpressionConfig(), tableName));
-                query.append("INSERT INTO " + tableName + " (id,method_statement_id,sequence,method_statement_expression_type,expression_id,block_id) VALUES ( uuid_generate_v4(),v_method_statement_id_" + statement + "," + statementDetail.getSequence() + ",'" + statementDetail.getMethod_statement_expression_type() + "'," + " v_expression_id_" + expressions + ",NULL) RETURNING id INTO v_method_statement_detail_id_" + statementDetails + ";\n");
+                query.append("INSERT INTO " + tableName + " (id,method_statement_id,sequence,method_statement_expression_type,expression_id,block_id) VALUES ( uuid_generate_v4(),v_method_statement_id_" + statementCounter + "," + statementDetail.getSequence() + ",'" + statementDetail.getMethod_statement_expression_type() + "'," + " v_expression_id_" + expressionCounter + ",NULL) RETURNING id INTO v_method_statement_detail_id_" + statementDetailCounter + ";\n");
 
             } else if (statementDetail.getBlockConfig() != null && statementDetail.getExpressionConfig() == null) {
                 query.append(generateScript(statementDetail.getBlockConfig(), tableName));
-                query.append("INSERT INTO " + tableName + " (id,method_statement_id,sequence,method_statement_expression_type,expression_id,block_id) VALUES ( uuid_generate_v4(),v_method_statement_id_" + statement + "," + statementDetail.getSequence() + ",'" + statementDetail.getMethod_statement_expression_type() + "'," + "NULL,v_block_id_" + blockConfig + ") RETURNING id INTO v_method_statement_detail_id_" + statementDetails + ";\n");
+                query.append("INSERT INTO " + tableName + " (id,method_statement_id,sequence,method_statement_expression_type,expression_id,block_id) VALUES ( uuid_generate_v4(),v_method_statement_id_" + statementCounter + "," + statementDetail.getSequence() + ",'" + statementDetail.getMethod_statement_expression_type() + "'," + "NULL,v_block_id_" + blockConfigCounter + ") RETURNING id INTO v_method_statement_detail_id_" + statementDetailCounter + ";\n");
 
             } else {
-                query.append("INSERT INTO " + tableName + " (id,method_statement_id,sequence,method_statement_expression_type,expression_id,block_id) VALUES ( uuid_generate_v4(),v_method_statement_id_" + statement + "," + statementDetail.getSequence() + ",'" + statementDetail.getMethod_statement_expression_type() + "'," + "NULL,NULL,NULL) RETURNING id INTO v_method_statement_detail_id_" + statementDetails + ";\n");
+                query.append("INSERT INTO " + tableName + " (id,method_statement_id,sequence,method_statement_expression_type,expression_id,block_id) VALUES ( uuid_generate_v4(),v_method_statement_id_" + statementCounter + "," + statementDetail.getSequence() + ",'" + statementDetail.getMethod_statement_expression_type() + "'," + "NULL,NULL,NULL) RETURNING id INTO v_method_statement_detail_id_" + statementDetailCounter + ";\n");
 
             }
 
@@ -246,6 +251,10 @@ public class ScriptService {
         //expression_config
         else if (object instanceof ExpressionConfigDTO expression) {
             expressions++;
+            int expressionCounter =expressions;
+            int leftOperandCounter=leftOperands;
+            int rightOperandCounter=rightOperands;
+            int operatorCounter=operators;
             String tableName = tableNames.get("expressionConfig");
 
 
@@ -254,16 +263,16 @@ public class ScriptService {
                     query.append(generateScript(expression.getOperator(), tableName));
                     query.append(generateScript(expression.getLeftOperand(), tableName));
                     query.append(generateScript(expression.getRightOperand(), tableName));
-                    query.append("INSERT INTO " + tableName + "(id,left_operand_id,right_operand_id,operator_id) VALUES (uuid_generate_v4() ,v_left_operand_id_" + leftOperands + ",v_right_operand_id_" + rightOperands + ",v_operator_id_" + operators + ") RETURNING id INTO v_expression_id_" + expressions + ";\n");
+                    query.append("INSERT INTO " + tableName + "(id,left_operand_id,right_operand_id,operator_id) VALUES (uuid_generate_v4() ,v_left_operand_id_" + leftOperandCounter + ",v_right_operand_id_" + rightOperandCounter + ",v_operator_id_" + operatorCounter + ") RETURNING id INTO v_expression_id_" + expressionCounter + ";\n");
                 } else if (expression.getLeftOperand() == null && expression.getRightOperand() != null) {
                     query.append(generateScript(expression.getOperator(), tableName));
                     query.append(generateScript(expression.getRightOperand(), tableName));
-                    query.append("INSERT INTO " + tableName + "(id,left_operand_id,right_operand_id,operator_id) VALUES (uuid_generate_v4() , NULL" + ",v_right_operand_id_" + rightOperands + ",v_operator_id_" + operators + ") RETURNING id INTO v_expression_id_" + expressions + ";\n");
+                    query.append("INSERT INTO " + tableName + "(id,left_operand_id,right_operand_id,operator_id) VALUES (uuid_generate_v4() , NULL" + ",v_right_operand_id_" + rightOperandCounter + ",v_operator_id_" + operatorCounter + ") RETURNING id INTO v_expression_id_" + expressionCounter + ";\n");
 
                 } else if (expression.getLeftOperand() != null && expression.getRightOperand() == null) {
                     query.append(generateScript(expression.getOperator(), tableName));
                     query.append(generateScript(expression.getLeftOperand(), tableName));
-                    query.append("INSERT INTO " + tableName + "(id,left_operand_id,right_operand_id,operator_id) VALUES (uuid_generate_v4() ,v_left_operand_id_" + leftOperands + ",NULL" + ",v_operator_id_" + operators + ") RETURNING id INTO v_expression_id_" + expressions + ";\n");
+                    query.append("INSERT INTO " + tableName + "(id,left_operand_id,right_operand_id,operator_id) VALUES (uuid_generate_v4() ,v_left_operand_id_" + leftOperandCounter + ",NULL" + ",v_operator_id_" + operatorCounter + ") RETURNING id INTO v_expression_id_" + expressionCounter + ";\n");
 
 
                 }
@@ -271,11 +280,11 @@ public class ScriptService {
                 if (expression.getLeftOperand() == null && expression.getRightOperand() != null) {
                     query.append(generateScript(expression.getRightOperand(), tableName));
 
-                    query.append("INSERT INTO " + tableName + "(id,left_operand_id,right_operand_id,operator_id) VALUES (uuid_generate_v4(), NULL  " + ",v_right_operand_id_" + rightOperands + ",NULL ) RETURNING id INTO v_expression_id_" + expressions + ";\n");
+                    query.append("INSERT INTO " + tableName + "(id,left_operand_id,right_operand_id,operator_id) VALUES (uuid_generate_v4(), NULL  " + ",v_right_operand_id_" + rightOperandCounter + ",NULL ) RETURNING id INTO v_expression_id_" + expressionCounter + ";\n");
 
                 } else if (expression.getLeftOperand() != null && expression.getRightOperand() == null) {
                     query.append(generateScript(expression.getLeftOperand(), tableName));
-                    query.append("INSERT INTO " + tableName + "(id,left_operand_id,right_operand_id,operator_id) VALUES (uuid_generate_v4() ,v_left_operand_id_" + leftOperands + ",NULL" + " , NULL) RETURNING id INTO v_expression_id_" + expressions + ";\n");
+                    query.append("INSERT INTO " + tableName + "(id,left_operand_id,right_operand_id,operator_id) VALUES (uuid_generate_v4() ,v_left_operand_id_" + leftOperandCounter + ",NULL" + " , NULL) RETURNING id INTO v_expression_id_" + expressionCounter + ";\n");
 
                 }
             }
@@ -284,22 +293,31 @@ public class ScriptService {
         // left operand_config
         else if (object instanceof LeftOperandConfigDTO leftOperand) {
             leftOperands++;
+            int leftOperandCounter=leftOperands;
+            int expressionCounter=expressions;
+            int methodQueryCounter=methodquery;
             String tableName = tableNames.get("operand");
 
             if (leftOperand.getMethodToBeCalled() != null) {
                 String methodToBeCalled = leftOperand.getMethodToBeCalled();
+                String[] parts = methodToBeCalled.split("\\.");
 
-                query.append("v_method_name := '" + methodToBeCalled.split("\\.")[1] + "';\n");
-                query.append("v_package_name := '" + methodToBeCalled.split("\\.")[0] + "';\n");
+                // v_method_name will be the last part after the last dot
+                String methodName = parts[parts.length - 1];
+
+                // v_package_name will be all the parts before the last dot, excluding the last part (v_method_name)
+                String packageName = String.join(".", Arrays.copyOf(parts, parts.length - 1));
+                query.append("v_method_name := '" + methodName + "';\n");
+                query.append("v_package_name := '" + packageName + "';\n");
 
                 // Set v_method_to_be_called to the desired method_id
                 query.append("SELECT id INTO v_method_to_be_called FROM config.m_method_config WHERE package_name = v_package_name::ltree AND name = v_method_name LIMIT 1;");
 
 
                 // Insert into config.m_operand_config
-                query.append("INSERT INTO " + tableName + "(id,path_to_object,literal,method_to_be_called,expression_id,type,query_config_id) " + "VALUES (uuid_generate_v4(), NULL, NULL, v_method_to_be_called, NULL, '" + leftOperand.getType() + "', NULL) " + "RETURNING id INTO v_left_operand_id_" + leftOperands + ";\n");
+                query.append("INSERT INTO " + tableName + "(id,path_to_object,literal,method_to_be_called,expression_id,type,query_config_id) " + "VALUES (uuid_generate_v4(), NULL, NULL, v_method_to_be_called, NULL, '" + leftOperand.getType() + "', NULL) " + "RETURNING id INTO v_left_operand_id_" + leftOperandCounter + ";\n");
 
-
+                // Iterates over list of MethodArguments Configuration
                 List<MethodArgumentsConfigDTO> methodArgumentsList = leftOperand.getMethodArgumentsConfigList();
                 if (methodArgumentsList != null) {
                     for (MethodArgumentsConfigDTO methodArguments : methodArgumentsList) {
@@ -308,15 +326,16 @@ public class ScriptService {
                 }
             } else if (leftOperand.getExpressionConfig() != null) {
                 query.append(generateScript(leftOperand.getExpressionConfig(), "left"));
-                query.append("INSERT INTO " + tableName + "(id,path_to_object,literal,method_to_be_called,expression_id,type,query_config_id) VALUES ( uuid_generate_v4() , NULL ,NULL,NULL," + "v_expression_id_" + expressions + ",'" + leftOperand.getType() + "'," + "NULL) RETURNING id INTO v_left_operand_id_" + leftOperands + ";\n");
+                query.append("INSERT INTO " + tableName + "(id,path_to_object,literal,method_to_be_called,expression_id,type,query_config_id) VALUES ( uuid_generate_v4() , NULL ,NULL,NULL," + "v_expression_id_" + expressionCounter + ",'" + leftOperand.getType() + "'," + "NULL) RETURNING id INTO v_left_operand_id_" + leftOperandCounter + ";\n");
             } else if (leftOperand.getPathToObject() != null) {
-                query.append("INSERT INTO " + tableName + "(id,path_to_object,literal,method_to_be_called,expression_id,type,query_config_id) VALUES ( uuid_generate_v4() ,'" + leftOperand.getPathToObject() + "',NULL,NULL,NULL,' " + leftOperand.getType() + "',NULL) RETURNING id INTO v_left_operand_id_" + leftOperands + ";\n");
+                query.append("INSERT INTO " + tableName + "(id,path_to_object,literal,method_to_be_called,expression_id,type,query_config_id) VALUES ( uuid_generate_v4() ,'" + leftOperand.getPathToObject() + "',NULL,NULL,NULL,' " + leftOperand.getType() + "',NULL) RETURNING id INTO v_left_operand_id_" + leftOperandCounter + ";\n");
 
             } else if (leftOperand.getLiteral() != null) {
-                query.append("INSERT INTO " + tableName + "(id,path_to_object,literal,method_to_be_called,expression_id,type,query_config_id) VALUES ( uuid_generate_v4() ,NULL,'" + leftOperand.getLiteral() + "',NULL,NULL, '" + leftOperand.getType() + "',NULL) RETURNING id INTO v_left_operand_id_" + leftOperands + ";\n");
+                query.append("INSERT INTO " + tableName + "(id,path_to_object,literal,method_to_be_called,expression_id,type,query_config_id) VALUES ( uuid_generate_v4() ,NULL,'" + leftOperand.getLiteral() + "',NULL,NULL, '" + leftOperand.getType() + "',NULL) RETURNING id INTO v_left_operand_id_" + leftOperandCounter + ";\n");
             } else if (leftOperand.getQueryConfig() != null) {
                 query.append(generateScript(leftOperand.getQueryConfig(), "left"));
-                query.append("INSERT INTO " + tableName + "(id,path_to_object,literal,method_to_be_called,expression_id,type,query_config_id) VALUES ( uuid_generate_v4() ,NULL,NULL ,NULL,NULL,'" + leftOperand.getType() + "',v_query_id_" + methodquery + ") RETURNING id INTO v_left_operand_id_" + leftOperands + ";\n");
+                query.append("INSERT INTO " + tableName + "(id,path_to_object,literal,method_to_be_called,expression_id,type,query_config_id) VALUES ( uuid_generate_v4() ,NULL,NULL ,NULL,NULL,'" + leftOperand.getType() + "',v_query_id_" + methodQueryCounter + ") RETURNING id INTO v_left_operand_id_" + leftOperandCounter + ";\n");
+
             }
         }
 
@@ -324,39 +343,48 @@ public class ScriptService {
         //right operand
         else if (object instanceof RightOperandConfigDTO rightOperand) {
             rightOperands++;
+            int rightOperandsCounter=rightOperands;
+            int expressionCounter=expressions;
+            int methodQueryCounter=methodquery;
             String tableName = tableNames.get("operand");
 
             if (rightOperand.getMethodToBeCalled() != null) {
-//                query.append("INSERT INTO " + tableName + "(id,path_to_object,literal,method_to_be_called,expression_id,type,query_config_id) VALUES ( uuid_generate_v4() , NULL ,NULL,'" + rightOperand.getMethodToBeCalled() + "'," + "NULL" + ",'" + rightOperand.getType() + "'," + "NULL) RETURNING id INTO v_right_operand_id_" + rightOperands + ";\n");
 
                 String methodToBeCalled = rightOperand.getMethodToBeCalled();
 
-                query.append("v_method_name := '" + methodToBeCalled.split("\\.")[1] + "';\n");
-                query.append("v_package_name := '" + methodToBeCalled.split("\\.")[0] + "';\n");
+                String[] parts = methodToBeCalled.split("\\.");
+
+                // v_method_name will be the last part after the last dot
+                String methodName = parts[parts.length - 1];
+
+                // v_package_name will be all the parts before the last dot, excluding the last part (v_method_name)
+                String packageName = String.join(".", Arrays.copyOf(parts, parts.length - 1));
+                query.append("v_method_name := '" + methodName + "';\n");
+                query.append("v_package_name := '" + packageName + "';\n");
 
                 // Set v_method_to_be_called to the desired method_id
                 query.append("SELECT id INTO v_method_to_be_called FROM config.m_method_config WHERE package_name = v_package_name::ltree AND name = v_method_name LIMIT 1;");
 
 
                 // Insert into config.m_operand_config
-                query.append("INSERT INTO " + tableName + "(id,path_to_object,literal,method_to_be_called,expression_id,type,query_config_id) " + "VALUES (uuid_generate_v4(), NULL, NULL, v_method_to_be_called, NULL, '" + rightOperand.getType() + "', NULL) " + "RETURNING id INTO v_right_operand_id_" + rightOperands + ";\n");
+                query.append("INSERT INTO " + tableName + "(id,path_to_object,literal,method_to_be_called,expression_id,type,query_config_id) " +
+                        "VALUES (uuid_generate_v4(), NULL, NULL, v_method_to_be_called, NULL, '" + rightOperand.getType() + "', NULL) " +
+                        "RETURNING id INTO v_right_operand_id_" + rightOperandsCounter + ";\n");
 
                 for (MethodArgumentsConfigDTO methodArguments : rightOperand.getMethodArgumentsConfigList()) {
                     query.append(generateScript(methodArguments, "right"));
                 }
             } else if (rightOperand.getExpressionConfig() != null) {
                 query.append(generateScript(rightOperand.getExpressionConfig(), "right"));
-                query.append("INSERT INTO " + tableName + "(id,path_to_object,literal,method_to_be_called,expression_id,type,query_config_id) VALUES ( uuid_generate_v4() , NULL ,NULL,NULL," + "v_expression_id_" + expressions + ",'" + rightOperand.getType() + "'," + "NULL) RETURNING id INTO v_right_operand_id_" + rightOperands + ";\n");
+                query.append("INSERT INTO " + tableName + "(id,path_to_object,literal,method_to_be_called,expression_id,type,query_config_id) VALUES ( uuid_generate_v4() , NULL ,NULL,NULL," + "v_expression_id_" + expressionCounter + ",'" + rightOperand.getType() + "'," + "NULL) RETURNING id INTO v_right_operand_id_" + rightOperandsCounter + ";\n");
             } else if (rightOperand.getPathToObject() != null) {
-                query.append("INSERT INTO " + tableName + "(id,path_to_object,literal,method_to_be_called,expression_id,type,query_config_id) VALUES ( uuid_generate_v4() ,'" + rightOperand.getPathToObject() + "',NULL,NULL,NULL, '" + rightOperand.getType() + "',NULL) RETURNING id INTO v_right_operand_id_" + rightOperands + ";\n");
+                query.append("INSERT INTO " + tableName + "(id,path_to_object,literal,method_to_be_called,expression_id,type,query_config_id) VALUES ( uuid_generate_v4() ,'" + rightOperand.getPathToObject() + "',NULL,NULL,NULL, '" + rightOperand.getType() + "',NULL) RETURNING id INTO v_right_operand_id_" + rightOperandsCounter + ";\n");
 
             } else if (rightOperand.getLiteral() != null) {
-                query.append("INSERT INTO " + tableName + "(id,path_to_object,literal,method_to_be_called,expression_id,type,query_config_id) VALUES ( uuid_generate_v4() ,NULL,'" + rightOperand.getLiteral() + "',NULL,NULL, '" + rightOperand.getType() + "',NULL) RETURNING id INTO v_right_operand_id_" + rightOperands + ";\n");
+                query.append("INSERT INTO " + tableName + "(id,path_to_object,literal,method_to_be_called,expression_id,type,query_config_id) VALUES ( uuid_generate_v4() ,NULL,'" + rightOperand.getLiteral() + "',NULL,NULL, '" + rightOperand.getType() + "',NULL) RETURNING id INTO v_right_operand_id_" + rightOperandsCounter + ";\n");
             } else if (rightOperand.getQueryConfig() != null) {
                 query.append(generateScript(rightOperand.getQueryConfig(), "right"));
-                query.append("INSERT INTO " + tableName + "(id,path_to_object,literal,method_to_be_called,expression_id,type,query_config_id) VALUES ( uuid_generate_v4() ,NULL,NULL ,NULL,NULL,'" + "'" + rightOperand.getType() + "'" + "',v_query_id_" + methodquery + ") RETURNING id INTO v_right_operand_id_" + rightOperands + ";\n");
-
-//                query.append("UPDATE " + tableName + " set query_config_id = v_query_id_" + methodquery + " WHERE query_config_id = NULL; \n");
+                query.append("INSERT INTO " + tableName + "(id,path_to_object,literal,method_to_be_called,expression_id,type,query_config_id) VALUES ( uuid_generate_v4() ,NULL,NULL ,NULL,NULL,'" + "'" + rightOperand.getType() + "'" + "',v_query_id_" + methodQueryCounter + ") RETURNING id INTO v_right_operand_id_" + rightOperandsCounter + ";\n");
 
             }
 
@@ -366,37 +394,43 @@ public class ScriptService {
         //operator_config
         else if (object instanceof OperatorDTO operator) {
             operators++;
+            int operatorCounter=operators;
+            int expressionCounter=expressions;
             String tableName = tableNames.get("operator");
-            query.append("INSERT INTO " + tableName + "(id,is_archive,name,type) VALUES(" + "uuid_generate_v4(),'" + operator.is_archive() + "','" + operator.getName() + "','" + operator.getType() + "') ON CONFLICT (id)\n" + "DO NOTHING  RETURNING ID INTO v_operator_id_" + operators + ";\n");
+            query.append("INSERT INTO " + tableName + "(id,is_archive,name,type) VALUES(" + "uuid_generate_v4(),'" + operator.is_archive() + "','" + operator.getName() + "','" + operator.getType() + "') ON CONFLICT (id)\n" + "DO NOTHING  RETURNING ID INTO v_operator_id_" + operatorCounter + ";\n");
             if (parent.equals("config.m_expression_config")) {
-                query.append(" UPDATE config.m_expression_config SET operator_id = v_operator_id_" + operators + " WHERE id = v_expression_id_" + expressions + ";\n");
+                query.append(" UPDATE config.m_expression_config SET operator_id = v_operator_id_" + operatorCounter + " WHERE id = v_expression_id_" + expressionCounter + ";\n");
             }
         }
 //
         //method_Arguments_config
         else if (object instanceof MethodArgumentsConfigDTO methodArguments) {
             methodArgument++;
+            int methodArgumentsCounter=methodArgument;
+            int leftOperandCounter=leftOperands;
+            int rightOperandCounter=rightOperands;
+            int expressionCounter=expressions;
             String tableName = tableNames.get("methodArgumentsConfigList");
 
             if (methodArguments.getExpressionConfig() != null) {
                 query.append(generateScript(methodArguments.getExpressionConfig(), tableName));
                 if (parent.equalsIgnoreCase("left")) {
-                    query.append("INSERT INTO " + tableName + "(id,operand_id,method_variable_id,literal,path_to_object,expression_id)VALUES(uuid_generate_v4(),v_left_operand_id_" + leftOperands + ",NULL" + ",'" + methodArguments.getLiteral() + "','" + methodArguments.getPath_to_object() + "'," + "v_expression_id_" + expressions + ")RETURNING ID INTO v_method_arguments_id_" + methodArgument + ";\n");
+                    query.append("INSERT INTO " + tableName + "(id,operand_id,method_variable_id,literal,path_to_object,expression_id)VALUES(uuid_generate_v4(),v_left_operand_id_" + leftOperandCounter + ",NULL" + ",'" + methodArguments.getLiteral() + "','" + methodArguments.getPath_to_object() + "'," + "v_expression_id_" + expressionCounter + ")RETURNING ID INTO v_method_arguments_id_" + methodArgumentsCounter + ";\n");
                 } else if (parent.equalsIgnoreCase("right")) {
-                    query.append("INSERT INTO " + tableName + "(id,operand_id,method_variable_id,literal,path_to_object,expression_id)VALUES(uuid_generate_v4(),v_right_operand_id_" + rightOperands + ",NULL" + ",'" + methodArguments.getLiteral() + "','" + methodArguments.getPath_to_object() + "'," + "v_expression_id_" + expressions + ")RETURNING ID INTO v_method_arguments_id_" + methodArgument + ";\n");
+                    query.append("INSERT INTO " + tableName + "(id,operand_id,method_variable_id,literal,path_to_object,expression_id)VALUES(uuid_generate_v4(),v_right_operand_id_" + rightOperandCounter + ",NULL" + ",'" + methodArguments.getLiteral() + "','" + methodArguments.getPath_to_object() + "'," + "v_expression_id_" + expressionCounter + ")RETURNING ID INTO v_method_arguments_id_" + methodArgumentsCounter + ";\n");
                 }
             } else {
                 if (parent.equalsIgnoreCase("left")) {
-                    query.append("INSERT INTO " + tableName + "(id,operand_id,method_variable_id,literal,path_to_object,expression_id)VALUES(uuid_generate_v4(),v_left_operand_id_" + leftOperands + ",NULL" + ",'" + methodArguments.getLiteral() + "','" + methodArguments.getPath_to_object() + "'," + "NULL)RETURNING id INTO v_method_arguments_id_" + methodArgument + ";\n");
+                    query.append("INSERT INTO " + tableName + "(id,operand_id,method_variable_id,literal,path_to_object,expression_id)VALUES(uuid_generate_v4(),v_left_operand_id_" + leftOperandCounter + ",NULL" + ",'" + methodArguments.getLiteral() + "','" + methodArguments.getPath_to_object() + "'," + "NULL)RETURNING id INTO v_method_arguments_id_" + methodArgumentsCounter + ";\n");
                 } else if (parent.equalsIgnoreCase("right")) {
-                    query.append("INSERT INTO " + tableName + "(id,operand_id,method_variable_id,literal,path_to_object,expression_id)VALUES(uuid_generate_v4(),v_right_operand_id_" + rightOperands + ",NULL" + ",'" + methodArguments.getLiteral() + "','" + methodArguments.getPath_to_object() + "'," + "NULL)RETURNING id INTO v_method_arguments_id_" + methodArgument + ";\n");
+                    query.append("INSERT INTO " + tableName + "(id,operand_id,method_variable_id,literal,path_to_object,expression_id)VALUES(uuid_generate_v4(),v_right_operand_id_" + rightOperandCounter + ",NULL" + ",'" + methodArguments.getLiteral() + "','" + methodArguments.getPath_to_object() + "'," + "NULL)RETURNING id INTO v_method_arguments_id_" + methodArgumentsCounter + ";\n");
                 }
             }
 
 
         }
-//
-//        //method_variable
+
+        //method_variable
         else if (object instanceof MethodVariableDTO methodVariable) {
             variable++;
             String tableName = tableNames.get("methodVariablesList");
@@ -407,14 +441,11 @@ public class ScriptService {
             String tableName = tableNames.get("methodquery");
             String fixedQuery = fixQuery(queryConfig.getQuery());
             query.append("INSERT INTO " + tableName + "(id, query,database_config_id) VALUES( uuid_generate_v4(),'" + fixedQuery + "','" + queryConfig.getDatabase_config_id() + "')RETURNING id INTO v_query_id_" + methodquery + ";\n");
-
-
         }
-
         return query.toString();
     }
 
-    // Method to save script to a file
+    // Method to save the generated script to a file
     private void saveScriptToFile(String methodName, String script) {
         String username = System.getenv("USER");
         Path directoryPath = Paths.get("/home", username, "/bm_scripts", "/method_config");
@@ -422,6 +453,7 @@ public class ScriptService {
             Files.createDirectories(directoryPath);
         } catch (IOException e) {
             e.printStackTrace();
+
         }
 
         // Construct the file path
