@@ -44,7 +44,7 @@ public class ScriptService {
     public int operand = 0;
     public int methodquery = 0;
     // Method to generate script for all methods and save to files
-    StringBuilder updateQueries = new StringBuilder("");
+    StringBuilder updateQueries = new StringBuilder();
 
     // Constructor with ObjectMapper initialization and tableNames mapping
     public ScriptService(ObjectMapper objectMapper) {
@@ -106,7 +106,7 @@ public class ScriptService {
         // Iterate through each method in the list
         for (MethodConfigDTO method : methodConfigDTOList) {
             resetCounters();
-            queries = generateScript(method, null);
+            queries = generateScript(method, null, null);
 
             // Declare variables for each counter
             for (int i = 1; i <= methodConfig; i++) {
@@ -154,7 +154,7 @@ public class ScriptService {
             script.append("\nCOMMIT; \nEND $$;");
             saveScriptToFile(method.getName(), script.toString());
             script = new StringBuilder("DO $$ \n DECLARE \n");
-            updateQueries = new StringBuilder("");
+            updateQueries = new StringBuilder();
         }
 
 
@@ -163,7 +163,7 @@ public class ScriptService {
     }
 
     // Method to generate script for a given object
-    public String generateScript(Object object, String parent) {
+    public String generateScript(Object object, String parent, Integer parentCounter) {
         StringBuilder query = new StringBuilder();
 
 
@@ -172,16 +172,18 @@ public class ScriptService {
         //method config
         if (object instanceof MethodConfigDTO method) {
             methodConfig++;
+            int methodConfigCount = methodConfig;
             String tableName = tableNames.get("parent");
-            query.append("INSERT INTO " + tableName + "(id,name,is_archive,return_type_schema_def_id,block_id,package_name,is_using_multiple_db,type) VALUES (" + "uuid_generate_v4()" + ",'" + method.getName() + "','" + method.is_archive() + "','" + method.getReturn_type_schema_def_id() + "'," + "NULL" + ",'" + method.getPackage_name() + "','" + method.getIs_using_multiple_db() + "','" + method.getType() + "') RETURNING id INTO v_method_id_" + methodConfig + ";\n");
+            query.append("INSERT INTO " + tableName + "(id,name,is_archive,return_type_schema_def_id,block_id,package_name,is_using_multiple_db,type) VALUES (" + "uuid_generate_v4()" + ",'" + method.getName() + "','" + method.is_archive() + "','" + method.getReturn_type_schema_def_id() + "'," + "NULL" + ",'" + method.getPackage_name() + "','" + method.getIs_using_multiple_db() + "','" + method.getType() + "') RETURNING id INTO v_method_id_" + methodConfigCount + ";\n");
+            System.out.println("v_method_id_");
             if (method.getMethodVariablesList() != null && !method.getMethodVariablesList().isEmpty()) {
                 for (MethodVariableDTO variable : method.getMethodVariablesList()) {
-                    query.append(generateScript(variable, null));  // Append the query for each method variable
+                    query.append(generateScript(variable, null, methodConfigCount));  // Append the query for each method variable
                 }
 
             }
             if (method.getBlockConfig() != null) {
-                query.append(generateScript(method.getBlockConfig(), tableName));
+                query.append(generateScript(method.getBlockConfig(), tableName, methodConfigCount));
             }
         }
 
@@ -190,20 +192,20 @@ public class ScriptService {
 
             blockConfig++;
             int blockConfigCounter = (blockConfig == 0) ? 1 : blockConfig;
-            int statementDetailsCounter = (statementDetails == 0) ? 1 : statementDetails;
+            //int statementDetailsCounter = (statementDetails == 0) ? 1 : statementDetails;
             String tableName = tableNames.get("blockConfig");
             query.append("INSERT INTO " + tableName + " (id,parent_block_id) VALUES (" + "uuid_generate_v4()" + "," + block.getParent_block_id() + " ) RETURNING id INTO v_block_id_" + blockConfigCounter + ";\n");
             if (parent.equals("config.m_method_config")) {
-                updateQueries.append(" UPDATE config.m_method_config SET block_id = v_block_id_" + blockConfigCounter + " WHERE id = v_method_id_" + methodConfig + ";\n");
+                updateQueries.append(" UPDATE config.m_method_config SET block_id = v_block_id_" + blockConfigCounter + " WHERE id = v_method_id_" + parentCounter + ";\n");
             }
             if (parent.equals("config.m_method_statement_detail")) {
-                updateQueries.append(" UPDATE config.m_method_statement_detail SET block_id = v_block_id_" + blockConfigCounter + " WHERE id = v_method_statement_detail_id_" + statementDetailsCounter + ";\n");
+                updateQueries.append(" UPDATE config.m_method_statement_detail SET block_id = v_block_id_" + blockConfigCounter + " WHERE id = v_method_statement_detail_id_" + parentCounter + ";\n");
             }
 
 
             if (block.getMethodStatementList() != null && !block.getMethodStatementList().isEmpty()) {
                 for (MethodStatementDTO statement : block.getMethodStatementList()) {
-                    query.append(generateScript(statement, null));
+                    query.append(generateScript(statement, null, blockConfigCounter));
                 }
             }
 
@@ -214,15 +216,14 @@ public class ScriptService {
         else if (object instanceof MethodStatementDTO statements) {
             statement++;
             int statementCounter = (statement == 0) ? 1 : statement;
-            int blockConfigCounter = (blockConfig == 0) ? 1 : blockConfig;
-            ;
+            //int blockConfigCounter = (blockConfig == 0) ? 1 : blockConfig;
             String tableName = tableNames.get("methodStatementList");
             System.out.println("-----Statement Counter : " + statementCounter);
-            query.append("INSERT INTO " + tableName + " (id,type,sequence,block_id) VALUES (" + "uuid_generate_v4()," + "'" + statements.getType() + "','" + statements.getSequence() + "'," + "v_block_id_" + blockConfigCounter + ")" + "RETURNING id INTO v_method_statement_id_" + statementCounter + ";\n");
+            query.append("INSERT INTO " + tableName + " (id,type,sequence,block_id) VALUES (" + "uuid_generate_v4()," + "'" + statements.getType() + "','" + statements.getSequence() + "'," + "v_block_id_" + parentCounter + ")" + "RETURNING id INTO v_method_statement_id_" + statementCounter + ";\n");
             if (statements.getMethodStatementDetailList() != null && !statements.getMethodStatementDetailList().isEmpty()) {
                 for (MethodStatementDetailDTO statementDetail : statements.getMethodStatementDetailList()) {
 
-                    query.append(generateScript(statementDetail, null));
+                    query.append(generateScript(statementDetail, null, statementCounter));
 
                 }
             }
@@ -232,29 +233,26 @@ public class ScriptService {
         else if (object instanceof MethodStatementDetailDTO statementDetail) {
             statementDetails++;
             int statementDetailCounter = (statementDetails == 0) ? 1 : statementDetails;
-            int statementCounter = (statement == 0) ? 1 : statement;
-            ;
+//            int statementCounter = (statement == 0) ? 1 : statement;
             int blockConfigCounter = (blockConfig == 0) ? 1 : blockConfig;
-            ;
             int expressionCounter = (expressions == 0) ? 1 : expressions;
             String tableName = tableNames.get("methodStatementDetailList");
 
             if (statementDetail.getBlockConfig() != null && statementDetail.getExpressionConfig() != null) {
-                query.append(generateScript(statementDetail.getBlockConfig(), tableName));
-                query.append(generateScript(statementDetail.getExpressionConfig(), tableName));
-                System.out.println("-----StatementDetail Counter : " + statementCounter);
-                query.append("INSERT INTO " + tableName + " (id,method_statement_id,sequence,method_statement_expression_type,expression_id,block_id) VALUES ( uuid_generate_v4(),v_method_statement_id_" + statementCounter + "," + statementDetail.getSequence() + ",'" + statementDetail.getMethod_statement_expression_type() + "'," + " v_expression_id_" + expressionCounter + ",v_block_id_" + blockConfigCounter + ") RETURNING id INTO v_method_statement_detail_id_" + statementDetailCounter + ";\n");
+                query.append(generateScript(statementDetail.getBlockConfig(), tableName, statementDetailCounter));
+                query.append(generateScript(statementDetail.getExpressionConfig(), tableName, statementDetailCounter));
+                query.append("INSERT INTO " + tableName + " (id,method_statement_id,sequence,method_statement_expression_type,expression_id,block_id) VALUES ( uuid_generate_v4(),v_method_statement_id_" + parentCounter + "," + statementDetail.getSequence() + ",'" + statementDetail.getMethod_statement_expression_type() + "'," + " v_expression_id_" + expressionCounter + ",v_block_id_" + blockConfigCounter + ") RETURNING id INTO v_method_statement_detail_id_" + statementDetailCounter + ";\n");
             } else if (statementDetail.getBlockConfig() == null && statementDetail.getExpressionConfig() != null) {
 
-                query.append("INSERT INTO " + tableName + " (id,method_statement_id,sequence,method_statement_expression_type,expression_id,block_id) VALUES ( uuid_generate_v4(),v_method_statement_id_" + statementCounter + "," + statementDetail.getSequence() + ",'" + statementDetail.getMethod_statement_expression_type() + "'," + " v_expression_id_" + expressionCounter + ",NULL) RETURNING id INTO v_method_statement_detail_id_" + statementDetailCounter + ";\n");
-                query.append(generateScript(statementDetail.getExpressionConfig(), tableName));
+                query.append(generateScript(statementDetail.getExpressionConfig(), tableName, statementDetailCounter));
+                query.append("INSERT INTO " + tableName + " (id,method_statement_id,sequence,method_statement_expression_type,expression_id,block_id) VALUES ( uuid_generate_v4(),v_method_statement_id_" + parentCounter + "," + statementDetail.getSequence() + ",'" + statementDetail.getMethod_statement_expression_type() + "'," + " v_expression_id_" + expressionCounter + ",NULL) RETURNING id INTO v_method_statement_detail_id_" + statementDetailCounter + ";\n");
 
             } else if (statementDetail.getBlockConfig() != null && statementDetail.getExpressionConfig() == null) {
-                query.append(generateScript(statementDetail.getBlockConfig(), tableName));
-                query.append("INSERT INTO " + tableName + " (id,method_statement_id,sequence,method_statement_expression_type,expression_id,block_id) VALUES ( uuid_generate_v4(),v_method_statement_id_" + statementCounter + "," + statementDetail.getSequence() + ",'" + statementDetail.getMethod_statement_expression_type() + "'," + "NULL,v_block_id_" + blockConfigCounter + ") RETURNING id INTO v_method_statement_detail_id_" + statementDetailCounter + ";\n");
+                query.append(generateScript(statementDetail.getBlockConfig(), tableName, statementDetailCounter));
+                query.append("INSERT INTO " + tableName + " (id,method_statement_id,sequence,method_statement_expression_type,expression_id,block_id) VALUES ( uuid_generate_v4(),v_method_statement_id_" + parentCounter + "," + statementDetail.getSequence() + ",'" + statementDetail.getMethod_statement_expression_type() + "'," + "NULL,v_block_id_" + blockConfigCounter + ") RETURNING id INTO v_method_statement_detail_id_" + statementDetailCounter + ";\n");
 
             } else {
-                query.append("INSERT INTO " + tableName + " (id,method_statement_id,sequence,method_statement_expression_type,expression_id,block_id) VALUES ( uuid_generate_v4(),v_method_statement_id_" + statementCounter + "," + statementDetail.getSequence() + ",'" + statementDetail.getMethod_statement_expression_type() + "'," + "NULL,NULL,NULL) RETURNING id INTO v_method_statement_detail_id_" + statementDetailCounter + ";\n");
+                query.append("INSERT INTO " + tableName + " (id,method_statement_id,sequence,method_statement_expression_type,expression_id,block_id) VALUES ( uuid_generate_v4(),v_method_statement_id_" + parentCounter + "," + statementDetail.getSequence() + ",'" + statementDetail.getMethod_statement_expression_type() + "'," + "NULL,NULL,NULL) RETURNING id INTO v_method_statement_detail_id_" + statementDetailCounter + ";\n");
 
             }
 
@@ -268,53 +266,100 @@ public class ScriptService {
             int statementDetailCounter = (statementDetails == 0) ? 1 : statementDetails;
             int leftOperandCounter = (leftOperands == 0) ? 1 : leftOperands;
             int rightOperandCounter = (rightOperands == 0) ? 1 : rightOperands;
-            ;
             int operatorCounter = (operators == 0) ? 1 : operators;
-            ;
             String tableName = tableNames.get("expressionConfig");
 
 
             if (expression.getOperator() != null) {
                 if (expression.getLeftOperand() != null && expression.getRightOperand() != null) {
-                    query.append(generateScript(expression.getOperator(), tableName));
-                    query.append(generateScript(expression.getLeftOperand(), tableName));
-                    query.append(generateScript(expression.getRightOperand(), tableName));
-                    query.append("INSERT INTO " + tableName + "(id,left_operand_id,right_operand_id,operator_id) VALUES (uuid_generate_v4() ,v_left_operand_id_" + leftOperandCounter + ",v_right_operand_id_" + rightOperandCounter + ",v_operator_id_" + operatorCounter + ") RETURNING id INTO v_expression_id_" + expressionCounter + ";\n");
-                    System.out.println("Parent--------" + parent);
+                    query.append(generateScript(expression.getLeftOperand(), tableName, expressionCounter));
+                    query.append("INSERT INTO " + tableName + "(id,left_operand_id,right_operand_id,operator_id) VALUES (uuid_generate_v4() ,v_left_operand_id_" + leftOperands + ",v_right_operand_id_" + rightOperandCounter + ",v_operator_id_" + operatorCounter + ") RETURNING id INTO v_expression_id_" + expressionCounter + ";\n");
+                    query.append(generateScript(expression.getOperator(), tableName, expressionCounter));
+                    query.append(generateScript(expression.getRightOperand(), tableName, expressionCounter));
+//                    query.append("INSERT INTO " + tableName + "(id,left_operand_id,right_operand_id,operator_id) VALUES (uuid_generate_v4() ,v_left_operand_id_" + leftOperandCounter + ",v_right_operand_id_" + rightOperandCounter + ",v_operator_id_" + operatorCounter + ") RETURNING id INTO v_expression_id_" + expressionCounter + ";\n");
+//
+//                    System.out.println("Parent--------" + parent);
                     if (parent.equals("right")) {
-                        updateQueries.append("UPDATE config.m_operands SET expression_id=v_expression_id_" + expressionCounter + " WHERE id=v_right_operand_id_" + rightOperandCounter + " ;\n");
+
+                        updateQueries.append("UPDATE config.m_operand_config SET expression_id=v_expression_id_" + expressionCounter + " WHERE id=v_right_operand_id_" + parentCounter + " ;\n");
                     } else if (parent.equals("left")) {
-                        updateQueries.append("UPDATE config.m_operands SET expression_id=v_expression_id_" + expressionCounter + " WHERE id=v_left_operand_id_" + leftOperandCounter + " ;\n");
+                        updateQueries.append("UPDATE config.m_operand_config SET expression_id=v_expression_id_" + expressionCounter + " WHERE id=v_left_operand_id_" + parentCounter + " ;\n");
 
                     } else if (parent.equals("config.m_method_statement_detail")) {
-                        updateQueries.append("UPDATE config.m_method_statement_detail SET expression_id=v_expression_id_" + expressionCounter + " WHERE id=v_method_statement_detail_id_" + (statementDetailCounter) + " ;\n");
+                        updateQueries.append("UPDATE config.m_method_statement_detail SET expression_id=v_expression_id_" + expressionCounter + " WHERE id=v_method_statement_detail_id_" + (parentCounter) + " ;\n");
+                    } else if (parent.equals("config.m_method_arguments_config")) {
+                        updateQueries.append("UPDATE config.m_method_arguments_config SET expression_id=v_expression_id_" + expressionCounter + " WHERE id=v_method_arguments_id_" + parentCounter + " ;\n");
                     }
 
                 } else if (expression.getLeftOperand() == null && expression.getRightOperand() != null) {
-                    query.append(generateScript(expression.getOperator(), tableName));
-                    query.append(generateScript(expression.getRightOperand(), tableName));
+                    query.append(generateScript(expression.getOperator(), tableName, expressionCounter));
+                    query.append(generateScript(expression.getRightOperand(), tableName, expressionCounter));
                     query.append("INSERT INTO " + tableName + "(id,left_operand_id,right_operand_id,operator_id) VALUES (uuid_generate_v4() , NULL" + ",v_right_operand_id_" + rightOperandCounter + ",v_operator_id_" + operatorCounter + ") RETURNING id INTO v_expression_id_" + expressionCounter + ";\n");
 
-                } else if (expression.getLeftOperand() != null && expression.getRightOperand() == null) {
-                    query.append(generateScript(expression.getOperator(), tableName));
-                    query.append(generateScript(expression.getLeftOperand(), tableName));
-                    query.append("INSERT INTO " + tableName + "(id,left_operand_id,right_operand_id,operator_id) VALUES (uuid_generate_v4() ,v_left_operand_id_" + leftOperandCounter + ",NULL" + ",v_operator_id_" + operatorCounter + ") RETURNING id INTO v_expression_id_" + expressionCounter + ";\n");
+                    if (parent.equals("right")) {
 
+                        updateQueries.append("UPDATE config.m_operand_config SET expression_id=v_expression_id_" + expressionCounter + " WHERE id=v_right_operand_id_" + parentCounter + " ;\n");
+                    } else if (parent.equals("left")) {
+                        updateQueries.append("UPDATE config.m_operand_config SET expression_id=v_expression_id_" + expressionCounter + " WHERE id=v_left_operand_id_" + parentCounter + " ;\n");
+
+                    } else if (parent.equals("config.m_method_statement_detail")) {
+                        updateQueries.append("UPDATE config.m_method_statement_detail SET expression_id=v_expression_id_" + expressionCounter + " WHERE id=v_method_statement_detail_id_" + (parentCounter) + " ;\n");
+                    } else if (parent.equals("config.m_method_arguments_config")) {
+                        updateQueries.append("UPDATE config.m_method_arguments_config SET expression_id=v_expression_id_" + expressionCounter + " WHERE id=v_method_arguments_id_" + parentCounter + " ;\n");
+                    }
+
+
+                } else if (expression.getLeftOperand() != null && expression.getRightOperand() == null) {
+                    query.append(generateScript(expression.getLeftOperand(), tableName, expressionCounter));
+                    query.append("INSERT INTO " + tableName + "(id,left_operand_id,right_operand_id,operator_id) VALUES (uuid_generate_v4() ,v_left_operand_id_" + leftOperands + ",NULL" + ",v_operator_id_" + operatorCounter + ") RETURNING id INTO v_expression_id_" + expressionCounter + ";\n");
+                    query.append(generateScript(expression.getOperator(), tableName, expressionCounter));
+
+                    if (parent.equals("right")) {
+
+                        updateQueries.append("UPDATE config.m_operand_config SET expression_id=v_expression_id_" + expressionCounter + " WHERE id=v_right_operand_id_" + parentCounter + " ;\n");
+                    } else if (parent.equals("left")) {
+                        updateQueries.append("UPDATE config.m_operand_config SET expression_id=v_expression_id_" + expressionCounter + " WHERE id=v_left_operand_id_" + parentCounter + " ;\n");
+
+                    } else if (parent.equals("config.m_method_statement_detail")) {
+                        updateQueries.append("UPDATE config.m_method_statement_detail SET expression_id=v_expression_id_" + expressionCounter + " WHERE id=v_method_statement_detail_id_" + (parentCounter) + " ;\n");
+                    } else if (parent.equals("config.m_method_arguments_config")) {
+                        updateQueries.append("UPDATE config.m_method_arguments_config SET expression_id=v_expression_id_" + expressionCounter + " WHERE id=v_method_arguments_id_" + parentCounter + " ;\n");
+                    }
 
                 }
             } else if (expression.getOperator() == null) {
                 if (expression.getLeftOperand() == null && expression.getRightOperand() != null) {
 
                     query.append("INSERT INTO " + tableName + "(id,left_operand_id,right_operand_id,operator_id) VALUES (uuid_generate_v4(), NULL  " + ",v_right_operand_id_" + rightOperandCounter + ",NULL ) RETURNING id INTO v_expression_id_" + expressionCounter + ";\n");
-                    query.append(generateScript(expression.getRightOperand(), tableName));
+                    query.append(generateScript(expression.getRightOperand(), tableName, expressionCounter));
+                    if (parent.equals("right")) {
 
+                        updateQueries.append("UPDATE config.m_operand_config SET expression_id=v_expression_id_" + expressionCounter + " WHERE id=v_right_operand_id_" + parentCounter + " ;\n");
+                    } else if (parent.equals("left")) {
+                        updateQueries.append("UPDATE config.m_operand_config SET expression_id=v_expression_id_" + expressionCounter + " WHERE id=v_left_operand_id_" + parentCounter + " ;\n");
+
+                    } else if (parent.equals("config.m_method_statement_detail")) {
+                        updateQueries.append("UPDATE config.m_method_statement_detail SET expression_id=v_expression_id_" + expressionCounter + " WHERE id=v_method_statement_detail_id_" + (parentCounter) + " ;\n");
+                    } else if (parent.equals("config.m_method_arguments_config")) {
+                        updateQueries.append("UPDATE config.m_method_arguments_config SET expression_id=v_expression_id_" + expressionCounter + " WHERE id=v_method_arguments_id_" + parentCounter + " ;\n");
+                    }
 
                 } else if (expression.getLeftOperand() != null && expression.getRightOperand() == null) {
 
-                    query.append(generateScript(expression.getLeftOperand(), tableName));
-                    query.append("INSERT INTO " + tableName + "(id,left_operand_id,right_operand_id,operator_id) VALUES (uuid_generate_v4() ,v_left_operand_id_" + leftOperandCounter + ",NULL" + " , NULL) RETURNING id INTO v_expression_id_" + expressionCounter + ";\n");
-                    updateQueries.append("UPDATE config.m_method_statement_detail SET expression_id=v_expression_id_" + expressionCounter + " WHERE id =v_method_statement_detail_id_" + statementDetailCounter + ";\n");
+                    query.append(generateScript(expression.getLeftOperand(), tableName, expressionCounter));
+                    query.append("INSERT INTO " + tableName + "(id,left_operand_id,right_operand_id,operator_id) VALUES (uuid_generate_v4() ,v_left_operand_id_" + leftOperands + ",NULL" + " , NULL) RETURNING id INTO v_expression_id_" + expressionCounter + ";\n");
+                    updateQueries.append("UPDATE config.m_method_statement_detail SET expression_id=v_expression_id_" + expressionCounter + " WHERE id =v_method_statement_detail_id_" + parentCounter + ";\n");
+                    if (parent.equals("right")) {
 
+                        updateQueries.append("UPDATE config.m_operand_config SET expression_id=v_expression_id_" + expressionCounter + " WHERE id=v_right_operand_id_" + parentCounter + " ;\n");
+                    } else if (parent.equals("left")) {
+                        updateQueries.append("UPDATE config.m_operand_config SET expression_id=v_expression_id_" + expressionCounter + " WHERE id=v_left_operand_id_" + parentCounter + " ;\n");
+
+                    } else if (parent.equals("config.m_method_statement_detail")) {
+                        updateQueries.append("UPDATE config.m_method_statement_detail SET expression_id=v_expression_id_" + expressionCounter + " WHERE id=v_method_statement_detail_id_" + (parentCounter) + " ;\n");
+                    } else if (parent.equals("config.m_method_arguments_config")) {
+                        updateQueries.append("UPDATE config.m_method_arguments_config SET expression_id=v_expression_id_" + expressionCounter + " WHERE id=v_method_arguments_id_" + parentCounter + " ;\n");
+                    }
                 }
             }
         }
@@ -324,7 +369,6 @@ public class ScriptService {
             leftOperands++;
             int leftOperandCounter = (leftOperands == 0) ? 1 : leftOperands;
             int expressionCounter = (expressions == 0) ? 1 : expressions;
-            int methodQueryCounter = (methodquery == 0) ? 1 : methodquery;
             String tableName = tableNames.get("operand");
 
             if (leftOperand.getMethodToBeCalled() != null) {
@@ -349,25 +393,24 @@ public class ScriptService {
                 List<MethodArgumentsConfigDTO> methodArgumentsList = leftOperand.getMethodArgumentsConfigList();
                 if (methodArgumentsList != null && !methodArgumentsList.isEmpty()) {
                     for (MethodArgumentsConfigDTO methodArguments : methodArgumentsList) {
-                        query.append(generateScript(methodArguments, "left"));
+                        query.append(generateScript(methodArguments, "left", leftOperandCounter));
                     }
                 }
             } else if (leftOperand.getExpressionConfig() != null) {
-                query.append(generateScript(leftOperand.getExpressionConfig(), "left"));
+                expressionCounter++;
+                query.append(generateScript(leftOperand.getExpressionConfig(), "left", leftOperandCounter));
                 query.append("INSERT INTO " + tableName + "(id,path_to_object,literal,method_to_be_called,expression_id,type,query_config_id) VALUES ( uuid_generate_v4() , NULL ,NULL,NULL," + "v_expression_id_" + expressionCounter + ",'" + leftOperand.getType() + "'," + "NULL) RETURNING id INTO v_left_operand_id_" + leftOperandCounter + ";\n");
-                updateQueries.append("UPDATE  config.m_operand_config SET expression_id = v_expression_id_" + expressionCounter + " WHERE id =v_right_operand_id_" + leftOperandCounter + ";\n");
+                updateQueries.append("UPDATE  config.m_operand_config SET expression_id = v_expression_id_" + expressionCounter + " WHERE id =v_left_operand_id_" + parentCounter + ";\n");
             } else if (leftOperand.getPathToObject() != null) {
                 query.append("INSERT INTO " + tableName + "(id,path_to_object,literal,method_to_be_called,expression_id,type,query_config_id) VALUES ( uuid_generate_v4() ,'" + leftOperand.getPathToObject() + "',NULL,NULL,NULL,' " + leftOperand.getType() + "',NULL) RETURNING id INTO v_left_operand_id_" + leftOperandCounter + ";\n");
-                updateQueries.append("UPDATE config.m_expression_config SET left_operand_id = v_left_operand_id_" + leftOperandCounter + " WHERE expression_id=v_expression_id_" + expressionCounter + ";\n");
+                updateQueries.append("UPDATE config.m_expression_config SET left_operand_id = v_left_operand_id_" + leftOperandCounter + " WHERE id=v_expression_id_" + parentCounter + ";\n");
             } else if (leftOperand.getLiteral() != null) {
                 query.append("INSERT INTO " + tableName + "(id,path_to_object,literal,method_to_be_called,expression_id,type,query_config_id) VALUES ( uuid_generate_v4() ,NULL,'" + leftOperand.getLiteral() + "',NULL,NULL, '" + leftOperand.getType() + "',NULL) RETURNING id INTO v_left_operand_id_" + leftOperandCounter + ";\n");
-                updateQueries.append("UPDATE config.m_expression_config SET left_operand_id = v_left_operand_id_" + leftOperandCounter + " WHERE expression_id=v_expression_id_" + expressionCounter + ";\n");
+                updateQueries.append("UPDATE config.m_expression_config SET left_operand_id = v_left_operand_id_" + leftOperandCounter + " WHERE id=v_expression_id_" + parentCounter + ";\n");
 
             } else if (leftOperand.getQueryConfig() != null) {
-                query.append(generateScript(leftOperand.getQueryConfig(), "left"));
-                query.append("INSERT INTO " + tableName + "(id,path_to_object,literal,method_to_be_called,expression_id,type,query_config_id) VALUES ( uuid_generate_v4() ,NULL,NULL ,NULL,NULL,'" + leftOperand.getType() + "',v_query_id_" + methodQueryCounter + ") RETURNING id INTO v_left_operand_id_" + leftOperandCounter + ";\n");
-                //isko dekhna hai abhi
-
+                query.append(generateScript(leftOperand.getQueryConfig(), "left", leftOperandCounter));
+                query.append("INSERT INTO " + tableName + "(id,path_to_object,literal,method_to_be_called,expression_id,type,query_config_id) VALUES ( uuid_generate_v4() ,NULL,NULL ,NULL,NULL,'" + leftOperand.getType() + "',v_query_id_" + methodquery + ") RETURNING id INTO v_left_operand_id_" + leftOperandCounter + ";\n");
             }
         }
 
@@ -376,9 +419,8 @@ public class ScriptService {
         else if (object instanceof RightOperandConfigDTO rightOperand) {
             rightOperands++;
             int rightOperandsCounter = (rightOperands == 0) ? 1 : rightOperands;
-            ;
             int expressionCounter = (expressions == 0) ? 1 : expressions;
-            int methodQueryCounter = (methodquery == 0) ? 1 : methodquery;
+//            int methodQueryCounter = (methodquery == 0) ? 1 : methodquery;
             String tableName = tableNames.get("operand");
 
             if (rightOperand.getMethodToBeCalled() != null) {
@@ -400,27 +442,29 @@ public class ScriptService {
 
 
                 // Insert into config.m_operand_config
-                query.append("INSERT INTO " + tableName + "(id,path_to_object,literal,method_to_be_called,expression_id,type,query_config_id) " +
-                        "VALUES (uuid_generate_v4(), NULL, NULL, v_method_to_be_called, NULL, '" + rightOperand.getType() + "', NULL) " +
-                        "RETURNING id INTO v_right_operand_id_" + rightOperandsCounter + ";\n");
+                query.append("INSERT INTO " + tableName + "(id,path_to_object,literal,method_to_be_called,expression_id,type,query_config_id) " + "VALUES (uuid_generate_v4(), NULL, NULL, v_method_to_be_called, NULL, '" + rightOperand.getType() + "', NULL) " + "RETURNING id INTO v_right_operand_id_" + rightOperandsCounter + ";\n");
 
                 for (MethodArgumentsConfigDTO methodArguments : rightOperand.getMethodArgumentsConfigList()) {
-                    query.append(generateScript(methodArguments, "right"));
+                    System.out.println(rightOperandsCounter);
+                    query.append(generateScript(methodArguments, "right", rightOperandsCounter));
                 }
             } else if (rightOperand.getExpressionConfig() != null) {
-
+                expressionCounter++;
+                query.append(generateScript(rightOperand.getExpressionConfig(), "right", rightOperandsCounter));
                 query.append("INSERT INTO " + tableName + "(id,path_to_object,literal,method_to_be_called,expression_id,type,query_config_id) VALUES ( uuid_generate_v4() , NULL ,NULL,NULL," + "v_expression_id_" + expressionCounter + ",'" + rightOperand.getType() + "'," + "NULL) RETURNING id INTO v_right_operand_id_" + rightOperandsCounter + ";\n");
-                query.append(generateScript(rightOperand.getExpressionConfig(), "right"));
-                // updateQueries.append("UPDATE config.m_operand_config SET expression_id = v_expression_id_" + expressionCounter + " WHERE id =v_right_operand_id_"+rightOperandsCounter);
+
+                updateQueries.append("UPDATE config.m_operand_config SET expression_id =v_expression_id_" + expressionCounter + " WHERE id =v_right_operand_id_" + parentCounter+";\n");
+                updateQueries.append("UPDATE config.m_expression_config SET right_operand_id = v_right_operand_id_" + rightOperandsCounter + " WHERE id=v_expression_id_" + parentCounter + ";\n");
             } else if (rightOperand.getPathToObject() != null) {
                 query.append("INSERT INTO " + tableName + "(id,path_to_object,literal,method_to_be_called,expression_id,type,query_config_id) VALUES ( uuid_generate_v4() ,'" + rightOperand.getPathToObject() + "',NULL,NULL,NULL, '" + rightOperand.getType() + "',NULL) RETURNING id INTO v_right_operand_id_" + rightOperandsCounter + ";\n");
-                updateQueries.append("UPDATE config.m_expression_config SET right_operand_id = v_right_operand_id_" + rightOperandsCounter + " WHERE expression_id=v_expression_id_" + expressionCounter + ";\n");
+                updateQueries.append("UPDATE config.m_expression_config SET right_operand_id = v_right_operand_id_" + rightOperandsCounter + " WHERE id=v_expression_id_" + parentCounter + ";\n");
             } else if (rightOperand.getLiteral() != null) {
                 query.append("INSERT INTO " + tableName + "(id,path_to_object,literal,method_to_be_called,expression_id,type,query_config_id) VALUES ( uuid_generate_v4() ,NULL,'" + rightOperand.getLiteral() + "',NULL,NULL, '" + rightOperand.getType() + "',NULL) RETURNING id INTO v_right_operand_id_" + rightOperandsCounter + ";\n");
-                updateQueries.append("UPDATE config.m_expression_config SET right_operand_id = v_right_operand_id_" + rightOperandsCounter + " WHERE id=v_expression_id_" + expressionCounter + ";\n");
+                updateQueries.append("UPDATE config.m_expression_config SET right_operand_id = v_right_operand_id_" + rightOperandsCounter + " WHERE id=v_expression_id_" + parentCounter + ";\n");
             } else if (rightOperand.getQueryConfig() != null) {
-                query.append(generateScript(rightOperand.getQueryConfig(), "right"));
-                query.append("INSERT INTO " + tableName + "(id,path_to_object,literal,method_to_be_called,expression_id,type,query_config_id) VALUES ( uuid_generate_v4() ,NULL,NULL ,NULL,NULL,'" + "'" + rightOperand.getType() + "'" + "',v_query_id_" + methodQueryCounter + ") RETURNING id INTO v_right_operand_id_" + rightOperandsCounter + ";\n");
+
+                query.append(generateScript(rightOperand.getQueryConfig(), "right", rightOperandsCounter));
+                query.append("INSERT INTO " + tableName + "(id,path_to_object,literal,method_to_be_called,expression_id,type,query_config_id) VALUES ( uuid_generate_v4() ,NULL,NULL ,NULL,NULL,'" + "'" + rightOperand.getType() + "'" + "',v_query_id_" + methodquery + ") RETURNING id INTO v_right_operand_id_" + rightOperandsCounter + ";\n");
 
             }
 
@@ -431,12 +475,11 @@ public class ScriptService {
         else if (object instanceof OperatorDTO operator) {
             operators++;
             int operatorCounter = (operators == 0) ? 1 : operators;
-            ;
-            int expressionCounter = (expressions == 0) ? 1 : expressions;
+            //int expressionCounter = (expressions == 0) ? 1 : expressions;
             String tableName = tableNames.get("operator");
             query.append("INSERT INTO " + tableName + "(id,is_archive,name,type) VALUES(" + "uuid_generate_v4(),'" + operator.is_archive() + "','" + operator.getName() + "','" + operator.getType() + "') ON CONFLICT (id)\n" + "DO NOTHING  RETURNING ID INTO v_operator_id_" + operatorCounter + ";\n");
             if (parent.equals("config.m_expression_config")) {
-                updateQueries.append(" UPDATE config.m_expression_config SET operator_id = v_operator_id_" + operatorCounter + " WHERE id = v_expression_id_" + expressionCounter + ";\n");
+                updateQueries.append(" UPDATE config.m_expression_config SET operator_id = v_operator_id_" + operatorCounter + " WHERE id = v_expression_id_" + parentCounter + ";\n");
             }
         }
 //
@@ -450,17 +493,17 @@ public class ScriptService {
             String tableName = tableNames.get("methodArgumentsConfigList");
 
             if (methodArguments.getExpressionConfig() != null) {
-                query.append(generateScript(methodArguments.getExpressionConfig(), tableName));
+                query.append(generateScript(methodArguments.getExpressionConfig(), tableName, methodArgumentsCounter));
                 if (parent.equalsIgnoreCase("left")) {
-                    query.append("INSERT INTO " + tableName + "(id,operand_id,method_variable_id,literal,path_to_object,expression_id)VALUES(uuid_generate_v4(),v_left_operand_id_" + leftOperandCounter + ",NULL" + ",'" + methodArguments.getLiteral() + "','" + methodArguments.getPath_to_object() + "'," + "v_expression_id_" + expressionCounter + ")RETURNING ID INTO v_method_arguments_id_" + methodArgumentsCounter + ";\n");
+                    query.append("INSERT INTO " + tableName + "(id,operand_id,method_variable_id,literal,path_to_object,expression_id)VALUES(uuid_generate_v4(),v_left_operand_id_" + parentCounter + ",NULL" + ",'" + methodArguments.getLiteral() + "','" + methodArguments.getPath_to_object() + "'," + "v_expression_id_" + expressionCounter + ")RETURNING ID INTO v_method_arguments_id_" + methodArgumentsCounter + ";\n");
                 } else if (parent.equalsIgnoreCase("right")) {
-                    query.append("INSERT INTO " + tableName + "(id,operand_id,method_variable_id,literal,path_to_object,expression_id)VALUES(uuid_generate_v4(),v_right_operand_id_" + rightOperandCounter + ",NULL" + ",'" + methodArguments.getLiteral() + "','" + methodArguments.getPath_to_object() + "'," + "v_expression_id_" + expressionCounter + ")RETURNING ID INTO v_method_arguments_id_" + methodArgumentsCounter + ";\n");
+                    query.append("INSERT INTO " + tableName + "(id,operand_id,method_variable_id,literal,path_to_object,expression_id)VALUES(uuid_generate_v4(),v_right_operand_id_" + parentCounter + ",NULL" + ",'" + methodArguments.getLiteral() + "','" + methodArguments.getPath_to_object() + "'," + "v_expression_id_" + expressionCounter + ")RETURNING ID INTO v_method_arguments_id_" + methodArgumentsCounter + ";\n");
                 }
             } else {
                 if (parent.equalsIgnoreCase("left")) {
-                    query.append("INSERT INTO " + tableName + "(id,operand_id,method_variable_id,literal,path_to_object,expression_id)VALUES(uuid_generate_v4(),v_left_operand_id_" + leftOperandCounter + ",NULL" + ",'" + methodArguments.getLiteral() + "','" + methodArguments.getPath_to_object() + "'," + "NULL)RETURNING id INTO v_method_arguments_id_" + methodArgumentsCounter + ";\n");
+                    query.append("INSERT INTO " + tableName + "(id,operand_id,method_variable_id,literal,path_to_object,expression_id)VALUES(uuid_generate_v4(),v_left_operand_id_" + parentCounter + ",NULL" + ",'" + methodArguments.getLiteral() + "','" + methodArguments.getPath_to_object() + "'," + "NULL)RETURNING id INTO v_method_arguments_id_" + methodArgumentsCounter + ";\n");
                 } else if (parent.equalsIgnoreCase("right")) {
-                    query.append("INSERT INTO " + tableName + "(id,operand_id,method_variable_id,literal,path_to_object,expression_id)VALUES(uuid_generate_v4(),v_right_operand_id_" + rightOperandCounter + ",NULL" + ",'" + methodArguments.getLiteral() + "','" + methodArguments.getPath_to_object() + "'," + "NULL)RETURNING id INTO v_method_arguments_id_" + methodArgumentsCounter + ";\n");
+                    query.append("INSERT INTO " + tableName + "(id,operand_id,method_variable_id,literal,path_to_object,expression_id)VALUES(uuid_generate_v4(),v_right_operand_id_" + parentCounter + ",NULL" + ",'" + methodArguments.getLiteral() + "','" + methodArguments.getPath_to_object() + "'," + "NULL)RETURNING id INTO v_method_arguments_id_" + methodArgumentsCounter + ";\n");
                 }
             }
 
