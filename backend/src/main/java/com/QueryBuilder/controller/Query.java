@@ -1,6 +1,7 @@
 package com.QueryBuilder.controller;
 
 import com.QueryBuilder.dto.MethodConfigDTO;
+import com.QueryBuilder.service.QueryService;
 import com.QueryBuilder.service.ScriptService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -16,7 +17,7 @@ public class Query {
 
 
     @Autowired
-    private ScriptService scriptService;
+    private QueryService scriptService;
     @PostMapping("generate")
     public String generateScript(@RequestBody String  jsonString)
     {
