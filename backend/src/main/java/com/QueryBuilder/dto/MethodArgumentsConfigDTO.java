@@ -17,7 +17,7 @@ public class MethodArgumentsConfigDTO {
     @JsonProperty(value = "operand_id")
     private UUID operand_id;
     @JsonProperty(value = "method_variable_id")
-    private UUID method_variable_id;
+    private String method_variable_id;
     private String literal;
     @JsonProperty(value = "path_to_object")
     private String path_to_object;

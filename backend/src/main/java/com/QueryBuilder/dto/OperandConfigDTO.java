@@ -25,4 +25,5 @@ public class OperandConfigDTO {
     private QueryConfigDTO queryConfig;
     private List<MethodArgumentsConfigDTO> methodArgumentsConfigList;
     private ExpressionConfigDTO expressionConfig;
+
 }
