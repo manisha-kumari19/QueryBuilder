@@ -139,8 +139,13 @@ public class QueryService {
                 script.append("v_query_id_" + i + " UUID ;\n");
             }
             script.append("v_method_to_be_called UUID;\n");
+            script.append("v_return_type_schema_def_id  UUID;\n" );
             script.append("v_method_name VARCHAR;\n");
+            script.append("v_name VARCHAR;\n");
+            script.append("v_schema_def_id UUID;\n");
             script.append("v_package_name VARCHAR;\n");
+            script.append("p_name VARCHAR;\n");
+            script.append("  v_package_count INT;\n");
             script.append("v_method_variable_id UUID;\n");
             script.append("\n BEGIN \n");
             script.append(queries);
@@ -160,7 +165,41 @@ public class QueryService {
     public void generateScriptForMethod(MethodConfigDTO method, StringBuilder queries, StringBuilder updateQueries, String parent, int parentCounter) {
         methodConfig++;
         String tableName = tableNames.get("parent");
-        queries.append("INSERT INTO " + tableName + "(id,name,is_archive,return_type_schema_def_id,block_id,package_name,is_using_multiple_db,type) VALUES (" + "uuid_generate_v4()" + ",'" + method.getName() + "','" + method.is_archive() + "','" + method.getReturn_type_schema_def_id() + "'," + "NULL" + ",'" + method.getPackage_name() + "','" + method.getIs_using_multiple_db() + "','" + method.getType() + "') RETURNING id INTO v_method_id_" + methodConfig + ";\n");
+
+        //for ReturnTypeschemaDefId
+        String returnTypeSchemaDefId = method.getReturn_type_schema_def_id();
+        String[] parts = returnTypeSchemaDefId.split("\\.");
+
+        String Name = parts[parts.length - 1];
+
+        // v_package_name will be all the parts before the last dot, excluding the last part (v_method_name)
+        String packageName = String.join(".", Arrays.copyOf(parts, parts.length - 1));
+        queries.append("v_name := '" + Name + "';\n");
+        queries.append("v_package_name := '" + packageName + "';\n");
+
+        queries.append("SELECT id INTO v_return_type_schema_def_id  FROM  config.oas_schema WHERE package_name = v_package_name::ltree AND name = v_name LIMIT 1;");
+
+
+       //Check if package name exists
+        packageName = method.getPackage_name();
+        queries.append("v_package_name := '" + packageName + "';\n");
+        String packageCheckQuery = "SELECT COUNT(*) FROM config.package WHERE name = $1 ;" + "\n"; // yaha doubt hai
+
+
+
+//        queries.append("  EXECUTE '" + packageCheckQuery + "' INTO v_package_count USING v_package_name ::ltree;\n");
+//        queries.append("  IF v_package_count = 0 THEN\n");
+//        queries.append("    -- Package name does not exist, insert into 'package' table first\n");
+//        queries.append("    INSERT INTO config.package(name) VALUES (v_package_name::ltree);\n");
+//        queries.append("  END IF;\n");
+//        queries.append("    -- Package name exists, proceed with the insert\n");
+
+        queries.append("    INSERT INTO " + tableName + "(id, name, is_archive, return_type_schema_def_id, block_id, package_name, is_using_multiple_db, type) VALUES (" +
+                "uuid_generate_v4(), '" + method.getName() + "', '" + method.is_archive() + "', v_return_type_schema_def_id , " +
+                "NULL,'"+method.getPackage_name()  + "', '" + method.getIs_using_multiple_db() + "', '" + method.getType() + "') RETURNING id INTO v_method_id_" + methodConfig + ";\n");
+
+
+
         if (method.getMethodVariablesList() != null && !method.getMethodVariablesList().isEmpty()) {
             for (MethodVariableDTO variable : method.getMethodVariablesList()) {
                 generateScriptForMethodVariables(variable, queries, updateQueries, tableName, methodConfig);
@@ -376,9 +415,16 @@ public class QueryService {
             queries.append("INSERT INTO " + tableName + "(id,path_to_object,literal,method_to_be_called,expression_id,type,query_config_id) " + "VALUES (uuid_generate_v4(), NULL, NULL, v_method_to_be_called, NULL, '" + rightOperand.getType() + "', NULL) " + "RETURNING id INTO v_right_operand_id_" + rightOperandsCounter + ";\n");
             updateQueries.append("UPDATE config.m_expression_config SET right_operand_id = v_right_operand_id_" + rightOperandsCounter + " WHERE id=v_expression_id_" + parentCounter + ";\n");
 
-            for (MethodArgumentsConfigDTO methodArguments : rightOperand.getMethodArgumentsConfigList()) {
-                generateScriptForMethodArguments(methodArguments, queries, updateQueries, "right", rightOperandsCounter);
+
+
+            List<MethodArgumentsConfigDTO> methodArgumentsList = rightOperand.getMethodArgumentsConfigList();
+            if (methodArgumentsList != null && !methodArgumentsList.isEmpty()) {
+                for (MethodArgumentsConfigDTO methodArguments : methodArgumentsList) {
+                    generateScriptForMethodArguments(methodArguments, queries, updateQueries, "right", rightOperandsCounter);
+                }
             }
+
+
         } else if (rightOperand.getExpressionConfig() != null) {
             expressionCounter++;
             generateScriptForExpression(rightOperand.getExpressionConfig(), queries, updateQueries, "right", rightOperandsCounter);
@@ -442,7 +488,22 @@ public class QueryService {
         variable++;
         int variableCounter = variable;
         String tableName = tableNames.get("methodVariablesList");
-        queries.append("INSERT INTO " + tableName + "(id,variable_name,type,schema_def_Id,method_id) VALUES(" + "uuid_generate_v4(),'" + variables.getVariable_name() + "','" + variables.getType() + "','" + variables.getSchema_def_id() + "'," + "v_method_id_" + parentCounter + ") RETURNING ID INTO v_method_variable_id_" + variableCounter + ";\n");
+        //for SchemaDefId;
+        String SchemaDefId = variables.getSchema_def_id();
+        String[] parts = SchemaDefId.split("\\.");
+
+        String name = parts[parts.length - 1];
+
+        // v_package_name will be all the parts before the last dot, excluding the last part (v_method_name)
+        String packageName = String.join(".", Arrays.copyOf(parts, parts.length - 1));
+        queries.append("v_name := '" + name + "';\n");
+        queries.append("v_package_name := '" + packageName + "';\n");
+
+        queries.append("SELECT id INTO v_schema_def_id  FROM  config.oas_schema WHERE package_name = v_package_name::ltree AND name = v_name LIMIT 1;");
+
+
+
+        queries.append("INSERT INTO " + tableName + "(id,variable_name,type,schema_def_Id,method_id) VALUES(" + "uuid_generate_v4(),'" + variables.getVariable_name() + "','" + variables.getType() + "', v_schema_def_id ," + "v_method_id_" + parentCounter + ") RETURNING ID INTO v_method_variable_id_" + variableCounter + ";\n");
 
     }
 

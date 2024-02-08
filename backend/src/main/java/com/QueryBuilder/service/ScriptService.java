@@ -148,6 +148,7 @@ public class ScriptService {
             script.append("v_method_to_be_called UUID;\n");
             script.append("v_method_name VARCHAR;\n");
             script.append("v_package_name VARCHAR;\n");
+            script.append("p_name VARCHAR;\n");
             script.append("\n BEGIN \n");
             script.append(queries);
             script.append(updateQueries);
@@ -174,8 +175,34 @@ public class ScriptService {
             methodConfig++;
             int methodConfigCount = methodConfig;
             String tableName = tableNames.get("parent");
-            query.append("INSERT INTO " + tableName + "(id,name,is_archive,return_type_schema_def_id,block_id,package_name,is_using_multiple_db,type) VALUES (" + "uuid_generate_v4()" + ",'" + method.getName() + "','" + method.is_archive() + "','" + method.getReturn_type_schema_def_id() + "'," + "NULL" + ",'" + method.getPackage_name() + "','" + method.getIs_using_multiple_db() + "','" + method.getType() + "') RETURNING id INTO v_method_id_" + methodConfigCount + ";\n");
-            System.out.println("v_method_id_");
+
+            String packageName = method.getPackage_name();
+            query.append("p_name:= '" + packageName + "';\n");
+            String packageCheckQuery = "SELECT COUNT(*) FROM config.package WHERE name = $1 ;" + "\n";
+
+            // Include the package existence check in your script
+
+            query.append("  -- Check if the package name exists\n");
+            query.append("  EXECUTE '" + packageCheckQuery + "' INTO v_package_count USING p_name::ltree;\n");
+            query.append("  IF v_package_count > 0 THEN\n");
+            query.append("    -- Package name exists, proceed with the insert\n");
+            query.append("    INSERT INTO " + tableName + "(id, name, is_archive, return_type_schema_def_id, block_id, package_name, is_using_multiple_db, type) VALUES (" +
+                    "uuid_generate_v4(), '" + method.getName() + "', '" + method.is_archive() + "', '" + method.getReturn_type_schema_def_id() + "', " +
+                    "NULL, '" + packageName + "', '" + method.getIs_using_multiple_db() + "', '" + method.getType() + "') RETURNING id INTO v_method_id_" + methodConfigCount + ";\n");
+            query.append("  ELSE\n");
+            query.append("    -- Package name does not exist, insert into 'package' table first\n");
+            query.append("    INSERT INTO config.package(name) VALUES (p_name::ltree);\n");
+            query.append("    -- Proceed with the insert\n");
+
+
+
+
+            query.append("    INSERT INTO " + tableName + "(id, name, is_archive, return_type_schema_def_id, block_id, package_name, is_using_multiple_db, type) VALUES (" +
+                    "uuid_generate_v4(), '" + method.getName() + "', '" + method.is_archive() + "', '" + method.getReturn_type_schema_def_id() + "', " +
+                    "NULL, '" + packageName + "', '" + method.getIs_using_multiple_db() + "', '" + method.getType() + "') RETURNING id INTO v_method_id_" + methodConfigCount + ";\n");
+            query.append("  END IF;\n");
+
+
             if (method.getMethodVariablesList() != null && !method.getMethodVariablesList().isEmpty()) {
                 for (MethodVariableDTO variable : method.getMethodVariablesList()) {
                     query.append(generateScript(variable, null, methodConfigCount));  // Append the query for each method variable

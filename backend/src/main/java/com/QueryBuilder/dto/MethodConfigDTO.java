@@ -17,7 +17,7 @@ public class MethodConfigDTO {
     @JsonProperty(value = "is_archive")
     private boolean is_archive;
     @JsonProperty(value = "return_type_schema_def_id")
-    private UUID return_type_schema_def_id;
+    private String return_type_schema_def_id;
     @JsonProperty(value = "block_id")
     private UUID block_id;
     private String type;
